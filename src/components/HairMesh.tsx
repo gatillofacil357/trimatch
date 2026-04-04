@@ -134,16 +134,42 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       );
       groupRef.current.quaternion.slerp(targetQuat, lerpFactor);
 
-      // 4. DYNAMIC SCALE (Temple Dist: 234 to 454)
+      // 4. DYNAMIC SCALE (Temple Dist: 234 to 454) + SHAPE ADJUSTMENTS
       const leftTemple = landmarks[234];
       const rightTemple = landmarks[454];
       const templeDist = Math.sqrt(
         Math.pow(rightTemple.x - leftTemple.x, 2) + 
         Math.pow(rightTemple.y - leftTemple.y, 2)
       );
-      const worldScale = templeDist * viewport.vWidth * 1.35;
       
-      groupRef.current.scale.setScalar(THREE.MathUtils.lerp(groupRef.current.scale.x, worldScale, lerpFactor));
+      const baseScale = templeDist * viewport.vWidth * 1.35;
+      
+      // Face Shape Modifiers
+      let scaleX = 1.0;
+      let scaleY = 1.0;
+      
+      if (shape === 'redondo') {
+        scaleY = 1.12; // Compensate roundness with vertical volume
+        scaleX = 0.96;
+      } else if (shape === 'alargado') {
+        scaleX = 1.08; // Add width to balance length
+        scaleY = 0.92;
+      } else if (shape === 'cuadrado') {
+        scaleX = 1.04;
+      } else if (shape === 'corazon') {
+        scaleX = 1.05;
+        scaleY = 1.05;
+      } else if (shape === 'diamante') {
+        scaleX = 1.1;
+      }
+
+      const targetScaleX = baseScale * scaleX;
+      const targetScaleY = baseScale * scaleY;
+      const targetScaleZ = baseScale; // Keep Z depth stable
+      
+      groupRef.current.scale.x = THREE.MathUtils.lerp(groupRef.current.scale.x, targetScaleX, lerpFactor);
+      groupRef.current.scale.y = THREE.MathUtils.lerp(groupRef.current.scale.y, targetScaleY, lerpFactor);
+      groupRef.current.scale.z = THREE.MathUtils.lerp(groupRef.current.scale.z, targetScaleZ, lerpFactor);
     }
     if (uniforms) uniforms.uTime.value = state.clock.getElapsedTime();
   });
