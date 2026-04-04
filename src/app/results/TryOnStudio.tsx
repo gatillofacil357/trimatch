@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
-import HairMesh from '@/components/HairMesh';
+import HairOverlay2D from '@/components/HairOverlay2D';
 import FaceOccluder from '@/components/FaceOccluder';
 import StyleSearch from '@/components/StyleSearch';
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
@@ -151,24 +151,24 @@ function TryOnStudioContent() {
     router.push('/barbers');
   };
 
-  const render3DHair = () => {
+  const renderHairOverlay = () => {
     if (!faceData || compareMode || loadingMsg || containerSize.width === 0 || landmarks.length === 0) return null;
     
     return (
       <div className={styles.canvasOverlay}>
+        {/* 1. LAYER: 2D OVERLAY (Photo-Realism) */}
+        <HairOverlay2D 
+          styleId={activeStyle} 
+          trackingRef={trackingRef} 
+        />
+
+        {/* 2. LAYER: Background & Occlusion (3D Engine) */}
         <Canvas>
           <OrthographicCamera makeDefault position={[0, 0, 100]} zoom={1} />
           <ambientLight intensity={1.5} />
           <directionalLight position={[0, 50, 100]} intensity={2.5} />
           
           <FaceOccluder trackingRef={trackingRef} />
-          
-          <HairMesh 
-            styleId={activeStyle} 
-            color={activeColor.hex} 
-            trackingRef={trackingRef}
-            shape={analysis?.shape}
-          />
         </Canvas>
       </div>
     );
@@ -192,7 +192,7 @@ function TryOnStudioContent() {
             <p>{loadingMsg}</p>
           </div>
         )}
-        {render3DHair()}
+        {renderHairOverlay()}
         
         {referenceStyle && (
             <div className={styles.referenceBadge}>
