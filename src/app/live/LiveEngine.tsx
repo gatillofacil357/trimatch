@@ -73,7 +73,7 @@ export default function LiveEngine() {
             trackingRef.current.matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
           }
           
-          // 2. SEGMENTATION (v6.0.1)
+          // 2. SEGMENTATION (v6.1 Replacement)
           if (imageSegmenter) {
             imageSegmenter.segmentForVideo(video, time, (result) => {
                const mask = result.categoryMask;
@@ -132,12 +132,12 @@ export default function LiveEngine() {
       {isLoading && (
           <div className={styles.loadingOverlay}>
               <div className={styles.spinner}></div>
-              Inicializando Motor de Reemplazo v6.0.1...
+              Inicializando AR v6.1 (Replacement Engine)...
           </div>
       )}
 
       <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v6.0.1 ✅</div>
+        <div className={styles.versionBadge}>AR Engine v6.1 ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={true} 
@@ -154,11 +154,15 @@ export default function LiveEngine() {
 
         {mpInitialized && (
           <div className={styles.canvasContainer}>
-            <Canvas camera={{ position: [0, 0, 5], fov: 50 }} dpr={[1, 2]}>
+            <Canvas 
+               camera={{ position: [0, 0, 5], fov: 50 }} 
+               dpr={[1, 2]}
+               style={{ width: '100%', height: '100%' }}
+            >
                 <ambientLight intensity={1.5} />
                 <pointLight position={[10, 10, 10]} intensity={1} />
                 
-                {/* 1. LAYER: Erase real hair */}
+                {/* 1. LAYER: Video replacement (The Bald Plate) */}
                 <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
 
                 {/* 2. LAYER: Face Occlusion */}

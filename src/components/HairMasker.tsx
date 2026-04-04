@@ -22,19 +22,23 @@ const maskFragmentShader = `
   uniform sampler2D uMaskTexture;
 
   void main() {
-    // MediaPipe video is usually mirrored/flipped depending on the setup.
-    // We assume standard uv here.
-    vec4 videoColor = texture2D(uVideoTexture, vUv);
+    // 1. MIRRORED UVs
+    // Since the parent container is scaleX(-1), we need to handle the texture accordingly.
+    // MediaPipe usually expects mirrored input if the camera is mirrored.
+    vec2 flippedUv = vec2(vUv.x, vUv.y); 
     
-    // Mask texture: Red channel contains the category 
-    // In our setup: 1.0 = Hair, 0.0 = Other
-    float mask = texture2D(uMaskTexture, vUv).r;
+    vec4 videoColor = texture2D(uVideoTexture, flippedUv);
+    
+    // Mask texture alignment (MediaPipe masks are often Y-flipped)
+    vec2 maskUv = vec2(vUv.x, 1.0 - vUv.y); 
+    float mask = texture2D(uMaskTexture, maskUv).r;
 
-    if (mask > 0.4) {
-        // Option A: Erase to very dark "shadow"
-        // This acts as a foundation for the new 3D hair
+    // REPLACEMENT ZONE
+    if (mask > 0.45) {
+        // High-Quality Erase: Neutral Skin/Dark Shadow
+        vec3 skinShadow = vec3(0.12, 0.08, 0.06); 
         float gray = dot(videoColor.rgb, vec3(0.299, 0.587, 0.114));
-        gl_FragColor = vec4(vec3(gray * 0.05), 1.0);
+        gl_FragColor = vec4(mix(skinShadow, videoColor.rgb * 0.1, 0.7), 1.0);
     } else {
         gl_FragColor = videoColor;
     }
