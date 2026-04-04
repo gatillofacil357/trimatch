@@ -4,17 +4,36 @@ import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 
-// SHADERS: Professional Hair Shader v5.2
+// SHADERS: Sculpting Engine v7.0
 const hairVertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vViewDir;
+  
+  uniform float uSideSqueeze;
+  uniform float uTopVolume;
+
   void main() {
     vUv = uv;
-    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    
+    // SCULPTING LOGIC: Transform generic sphere into haircut silhouette
+    // sideFactor: 1.0 at temple level, 0.0 at top
+    float sideFactor = 1.0 - smoothstep(0.0, 1.1, position.y);
+    // topFactor: 1.0 at the crown, 0.0 at face level
+    float topFactor = smoothstep(0.2, 1.0, position.y);
+    
+    vec3 sculptedPos = position;
+    // 1. Squeeze sides (The Fade effect)
+    sculptedPos.x *= mix(1.0, uSideSqueeze, sideFactor);
+    // 2. Extrude/Flatten top (The Volume effect)
+    sculptedPos.y *= mix(1.0, uTopVolume, topFactor);
+    // 3. Flatten back (to avoid dome depth)
+    sculptedPos.z *= mix(1.0, 0.85, 1.0 - topFactor);
+
+    vec4 worldPosition = modelMatrix * vec4(sculptedPos, 1.0);
     vViewDir = normalize(cameraPosition - worldPosition.xyz);
     vNormal = normalize(normalMatrix * normal);
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(sculptedPos, 1.0);
   }
 `;
 
@@ -37,19 +56,14 @@ const hairFragmentShader = `
   }
 
   void main() {
-      // 1. ANATOMICAL BLENDING
       float feather = smoothstep(0.0, 0.15, vUv.y); 
+      float hairStrands = noise(vUv * vec2(100.0, 250.0)) * 0.5 + 0.75;
       
-      // 2. HAIR STRAND TEXTURE (Stronger for realism)
-      float hairStrands = noise(vUv * vec2(80.0, 220.0)) * 0.5 + 0.75;
-      
-      // 3. COLOR GRADIENT
       vec3 hairColor = mix(uRootColor, uBaseColor, vUv.y);
       hairColor *= hairStrands; 
       
-      // 4. RIM LIGHTING
       float fresnel = pow(1.0 - max(dot(vNormal, vViewDir), 0.0), 3.0);
-      vec3 rimLight = vec3(1.0, 1.0, 0.95) * fresnel * 0.45;
+      vec3 rimLight = vec3(1.0, 1.0, 0.95) * fresnel * 0.4;
       
       vec3 finalColor = hairColor * uBrightness + rimLight;
       gl_FragColor = vec4(finalColor, uAlpha * feather);
@@ -78,12 +92,28 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
     return { main, root };
   }, [meshColor]);
 
+  // SCULPTING PRESETS (v7.0)
+  const sculptingProps = useMemo(() => {
+    switch (styleId) {
+      case 'fade':
+        return { sideSqueeze: 0.82, topVolume: 1.35 };
+      case 'buzz':
+        return { sideSqueeze: 0.96, topVolume: 1.05 };
+      case 'undercut':
+        return { sideSqueeze: 0.78, topVolume: 1.55 };
+      default:
+        return { sideSqueeze: 1.0, topVolume: 1.0 };
+    }
+  }, [styleId]);
+
   const uniforms = useMemo(() => ({
     uBaseColor: { value: colors.main },
     uRootColor: { value: colors.root },
     uAlpha: { value: 0.96 }, 
-    uBrightness: { value: 2.2 }, 
-  }), [colors]);
+    uBrightness: { value: 2.3 }, 
+    uSideSqueeze: { value: sculptingProps.sideSqueeze },
+    uTopVolume: { value: sculptingProps.topVolume },
+  }), [colors, sculptingProps]);
 
   useFrame(() => {
     const { landmarks, matrix, viewport } = trackingRef.current;
@@ -98,13 +128,11 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       const ny = -(forehead.y - 0.5) * viewport.vHeight;
       const nz = -nose.z * 4.8;
 
-      // POSITION: v6.2 LOW LANDING
+      // v7.0 Precision Landing
       const lerpFactor = 0.25;
-      // Bringing the hair much lower to the forehead level (near eyebrows)
-      const targetPos = new THREE.Vector3(nx, ny - 0.75, nz + 0.65); 
+      const targetPos = new THREE.Vector3(nx, ny - 0.8, nz + 0.6); 
       groupRef.current.position.lerp(targetPos, lerpFactor);
       
-      // ROTATION
       if (matrix) {
           const pos = new THREE.Vector3();
           const quat = new THREE.Quaternion();
@@ -113,14 +141,18 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
           groupRef.current.quaternion.slerp(quat, lerpFactor);
       }
 
-      // SCALE: v6.2 WIDER & FLATTER (Fade Profile)
+      // v7.0 Adaptive Width
       const templeDist = Math.sqrt(
         Math.pow(rightTemple.x - leftTemple.x, 2) + 
         Math.pow(rightTemple.y - leftTemple.y, 2)
       );
-      const baseScale = templeDist * viewport.vWidth * 1.45; 
-      const targetScale = new THREE.Vector3(baseScale * 1.15, baseScale * 0.55, baseScale * 1.15);
+      const baseScale = templeDist * viewport.vWidth * 1.5; 
+      const targetScale = new THREE.Vector3(baseScale, baseScale * 0.6, baseScale * 1.1);
       groupRef.current.scale.lerp(targetScale, lerpFactor);
+      
+      // Sync Uniforms
+      uniforms.uSideSqueeze.value = sculptingProps.sideSqueeze;
+      uniforms.uTopVolume.value = sculptingProps.topVolume;
     }
   });
 
@@ -139,8 +171,8 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
 
   const renderStyle = () => {
     return (
-      <mesh position={[0, 0.55, 0.0]}>
-        <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2.1]} />
+      <mesh position={[0, 0.65, 0.0]}>
+        <sphereGeometry args={[0.55, 128, 64, 0, Math.PI * 2, 0, Math.PI / 2.0]} />
         <primitive object={shaderMaterial} attach="material" />
       </mesh>
     );
