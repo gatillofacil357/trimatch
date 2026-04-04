@@ -72,24 +72,23 @@ const hairFragmentShader = `
 
   void main() {
       // 1. ANATOMICAL BLENDING (Soft Hairline)
-      // We make the bottom much softer and add a stochastic grain for "illusion"
-      float feather = smoothstep(0.05, 0.45, vUv.y); 
+      // Sharper but still soft to avoid invisibility
+      float feather = smoothstep(0.0, 0.12, vUv.y); 
       
       // 2. HAIR STRAND TEXTURE (Procedural Noise)
-      float hairStrands = noise(vUv * vec2(45.0, 150.0)) * 0.4 + 0.8;
+      float hairStrands = noise(vUv * vec2(60.0, 180.0)) * 0.3 + 0.85;
       
-      // 3. COLOR GRADIENT (Roots to Tips)
+      // 3. COLOR GRADIENT
       vec3 hairColor = mix(uRootColor, uBaseColor, vUv.y);
       hairColor *= hairStrands; 
       
-      // 4. RIM LIGHTING / FRESNEL (Adds 3D Depth)
+      // 4. RIM LIGHTING
       float fresnel = pow(1.0 - max(dot(vNormal, vViewDir), 0.0), 3.0);
-      vec3 rimLight = vec3(1.0, 1.0, 0.9) * fresnel * 0.4;
+      vec3 rimLight = vec3(1.0, 1.0, 0.9) * fresnel * 0.3;
       
       vec3 finalColor = hairColor * uBrightness + rimLight;
       
-      // 5. STOCHASTIC ALPHA ALPHA
-      float alphaNoise = hash(vUv.x * vUv.y * uTime) * 0.1;
+      // 5. ALPHA
       float finalAlpha = uAlpha * feather;
       
       gl_FragColor = vec4(finalColor, finalAlpha);
@@ -155,17 +154,17 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       // 3. SMOOTHING (Lerp/Slerp)
       const lerpFactor = 0.25; 
       
-      // POSITION: ANATOMICAL CALIBRATION v4.5
-      // Sitting just behind landmark 10 for better occlusion
-      const anchorY = ny - 0.15; 
-      const anchorZ = nz - 0.25; 
+      // POSITION: ANATOMICAL CALIBRATION v4.6
+      // Bringing it FORWARD to stay in front of the occluder forehead
+      const anchorY = ny - 0.05; 
+      const anchorZ = nz + 0.15; // Positive offset relative to face depth
       
       groupRef.current.position.lerp(new THREE.Vector3(nx, anchorY, anchorZ), lerpFactor);
       
-      // ROTATION: Stable tilt
+      // ROTATION
       const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
       const targetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-euler.x * 0.95, euler.y, -euler.z, 'XYZ')
+        new THREE.Euler(-euler.x * 0.9, euler.y, -euler.z, 'XYZ')
       );
       groupRef.current.quaternion.slerp(targetQuat, lerpFactor);
 
@@ -185,9 +184,9 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       else if (shape === 'alargado') { scaleX = 1.05; scaleY = 0.92; }
       else if (shape === 'cuadrado') { scaleX = 1.04; }
       
-      const targetScaleX = headWidthScale * scaleX * 1.05; // Slightly wider for volume
-      const targetScaleY = headWidthScale * scaleY * 1.08; 
-      const targetScaleZ = headWidthScale * 1.15; 
+      const targetScaleX = headWidthScale * scaleX * 1.02; 
+      const targetScaleY = headWidthScale * scaleY * 1.05; 
+      const targetScaleZ = headWidthScale * 1.1; 
       
       groupRef.current.scale.lerp(new THREE.Vector3(targetScaleX, targetScaleY, targetScaleZ), lerpFactor);
     }
@@ -210,9 +209,8 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
     switch (styleId) {
       case 'fade':
         return (
-          <mesh position={[0, 0.44, 0.05]} scale={[1.02, 0.62, 1.15]}>
-            {/* Sculpted Anatomical Cup - Ultra Soft Edges */}
-            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.6]} />
+          <mesh position={[0, 0.42, 0.0]} scale={[1.0, 0.65, 1.1]}>
+            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.7]} />
             <primitive object={shaderMaterial} attach="material" />
           </mesh>
         );
