@@ -51,9 +51,14 @@ export default function FaceOccluder({ trackingRef }: FaceOccluderProps) {
 
   return (
     <mesh ref={meshRef} geometry={geometry}>
-      {/* colorWrite: false makes this mesh invisible but it still writes to the Depth Buffer */}
-      {/* This "occludes" (hides) the hair that passes behind the head */}
-      <meshBasicMaterial colorWrite={false} depthWrite={true} side={THREE.DoubleSide} />
+      <meshBasicMaterial 
+        colorWrite={false} 
+        depthWrite={true} 
+        side={THREE.DoubleSide} 
+        polygonOffset={true}
+        polygonOffsetFactor={1}
+        polygonOffsetUnits={1}
+      />
     </mesh>
   );
 }
