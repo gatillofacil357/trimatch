@@ -155,7 +155,7 @@ export default function LiveEngine() {
       {loading && !cameraError && (
           <div className={styles.loadingOverlay}>
               <div className={styles.spinner}></div>
-              Inicializando AR Pro v4.6 (High Performance)...
+              Inicializando AR Pro v4.7 (High Performance)...
           </div>
       )}
       
@@ -167,7 +167,7 @@ export default function LiveEngine() {
       )}
 
       <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v4.6 ✅</div>
+        <div className={styles.versionBadge}>AR Engine v4.7 ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={true} 
@@ -207,9 +207,9 @@ export default function LiveEngine() {
             {/* PASS TRACKING REF TO COMPONENTS */}
             {mpInitialized && (
                 <>
-                    <FaceOccluder 
+                    {/* <FaceOccluder 
                       trackingRef={trackingRef} 
-                    />
+                    /> */}
                     
                     <HairMesh 
                         styleId={activeStyle} 

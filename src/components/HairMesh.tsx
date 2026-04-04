@@ -122,7 +122,7 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
   const uniforms = useMemo(() => ({
     uBaseColor: { value: colors.main },
     uRootColor: { value: colors.root },
-    uAlpha: { value: 0.95 },
+    uAlpha: { value: 1.0 }, // Fully opaque for visibility test
     uBrightness: { value: 1.8 }, 
     uTime: { value: 0 }
   }), [colors]);
@@ -154,10 +154,10 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       // 3. SMOOTHING (Lerp/Slerp)
       const lerpFactor = 0.25; 
       
-      // POSITION: ANATOMICAL CALIBRATION v4.6
-      // Bringing it FORWARD to stay in front of the occluder forehead
+      // POSITION: v4.7 VISIBILITY TEST
+      // Bringing it EXTREMELY forward to bypass depth issues
       const anchorY = ny - 0.05; 
-      const anchorZ = nz + 0.15; // Positive offset relative to face depth
+      const anchorZ = nz + 1.25; 
       
       groupRef.current.position.lerp(new THREE.Vector3(nx, anchorY, anchorZ), lerpFactor);
       
@@ -173,10 +173,10 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
         Math.pow(rightTemple.x - leftTemple.x, 2) + 
         Math.pow(rightTemple.y - leftTemple.y, 2)
       );
+
+      // SCALE
+      const headWidthScale = templeDist * viewport.vWidth * 1.5; 
       
-      const headWidthScale = templeDist * viewport.vWidth * 1.52; // Exact width from temples
-      
-      // Face Shape Modifiers
       let scaleX = 1.0;
       let scaleY = 1.0;
       
@@ -184,8 +184,8 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       else if (shape === 'alargado') { scaleX = 1.05; scaleY = 0.92; }
       else if (shape === 'cuadrado') { scaleX = 1.04; }
       
-      const targetScaleX = headWidthScale * scaleX * 1.02; 
-      const targetScaleY = headWidthScale * scaleY * 1.05; 
+      const targetScaleX = headWidthScale * scaleX; 
+      const targetScaleY = headWidthScale * scaleY; 
       const targetScaleZ = headWidthScale * 1.1; 
       
       groupRef.current.scale.lerp(new THREE.Vector3(targetScaleX, targetScaleY, targetScaleZ), lerpFactor);
