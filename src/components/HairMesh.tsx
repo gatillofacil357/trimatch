@@ -59,25 +59,40 @@ const hairFragmentShader = `
     float dotVT = dot(V, T);
     float highlight = pow(max(0.0, dotLT * dotVT + sqrt(1.0 - dotLT*dotLT) * sqrt(1.0 - dotVT*dotVT)), 40.0);
     
-    // 2. STRAND TEXTURE
-    float strand = hash(vec2(vUv.x * 250.0, vUv.y * 10.0));
-    float grain = mix(0.85, 1.15, strand);
+  uniform float uTime;
 
-    // 3. COLOR GRADIENT (Root to Tip)
-    float mixFactor = clamp(vUv.y * 1.2, 0.0, 1.0);
-    vec3 baseColor = mix(uRootColor, uBaseColor, mixFactor);
-    
-    // 4. RIM LIGHTING (Depth & Separation)
-    float rim = 1.0 - max(0.0, dot(V, N));
-    rim = pow(rim, 4.0) * 0.4;
+  // Simplex Noise for Hair Strands
+  float hash(float n) { return fract(sin(n) * 43758.5453123); }
+  float noise(vec2 x) {
+      vec2 p = floor(x); vec2 f = fract(x);
+      f = f*f*(3.0-2.0*f);
+      float n = p.x + p.y*57.0;
+      return mix(mix(hash(n+0.0), hash(n+1.0), f.x), mix(hash(n+57.0), hash(n+58.0), f.x), f.y);
+  }
 
-    // 5. FEATHERING (Soft edges for scalp blending)
-    float feather = smoothstep(0.0, 0.35, vUv.y); 
-    
-    // Final Composition
-    vec3 finalColor = (baseColor * uBrightness * grain) + (highlight * 0.3) + (rim * vec3(1.0));
-    
-    gl_FragColor = vec4(finalColor, uAlpha * feather);
+  void main() {
+      // 1. ANATOMICAL BLENDING (Soft Hairline)
+      // We make the bottom much softer and add a stochastic grain for "illusion"
+      float feather = smoothstep(0.05, 0.45, vUv.y); 
+      
+      // 2. HAIR STRAND TEXTURE (Procedural Noise)
+      float hairStrands = noise(vUv * vec2(45.0, 150.0)) * 0.4 + 0.8;
+      
+      // 3. COLOR GRADIENT (Roots to Tips)
+      vec3 hairColor = mix(uRootColor, uBaseColor, vUv.y);
+      hairColor *= hairStrands; 
+      
+      // 4. RIM LIGHTING / FRESNEL (Adds 3D Depth)
+      float fresnel = pow(1.0 - max(dot(vNormal, vViewDir), 0.0), 3.0);
+      vec3 rimLight = vec3(1.0, 1.0, 0.9) * fresnel * 0.4;
+      
+      vec3 finalColor = hairColor * uBrightness + rimLight;
+      
+      // 5. STOCHASTIC ALPHA ALPHA
+      float alphaNoise = hash(vUv.x * vUv.y * uTime) * 0.1;
+      float finalAlpha = uAlpha * feather;
+      
+      gl_FragColor = vec4(finalColor, finalAlpha);
   }
 `;
 
@@ -140,16 +155,17 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       // 3. SMOOTHING (Lerp/Slerp)
       const lerpFactor = 0.25; 
       
-      // POSITION: CORRECTED - Subtle offset from landmark 10
-      const anchorY = ny - 0.08; 
-      const anchorZ = nz - 0.05; 
+      // POSITION: ANATOMICAL CALIBRATION v4.5
+      // Sitting just behind landmark 10 for better occlusion
+      const anchorY = ny - 0.15; 
+      const anchorZ = nz - 0.25; 
       
       groupRef.current.position.lerp(new THREE.Vector3(nx, anchorY, anchorZ), lerpFactor);
       
-      // ROTATION
+      // ROTATION: Stable tilt
       const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
       const targetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-euler.x * 0.9, euler.y, -euler.z, 'XYZ')
+        new THREE.Euler(-euler.x * 0.95, euler.y, -euler.z, 'XYZ')
       );
       groupRef.current.quaternion.slerp(targetQuat, lerpFactor);
 
@@ -169,9 +185,9 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       else if (shape === 'alargado') { scaleX = 1.05; scaleY = 0.92; }
       else if (shape === 'cuadrado') { scaleX = 1.04; }
       
-      const targetScaleX = headWidthScale * scaleX * 0.92; // Slightly narrower
-      const targetScaleY = headWidthScale * scaleY * 1.0; 
-      const targetScaleZ = headWidthScale * 1.05; 
+      const targetScaleX = headWidthScale * scaleX * 1.05; // Slightly wider for volume
+      const targetScaleY = headWidthScale * scaleY * 1.08; 
+      const targetScaleZ = headWidthScale * 1.15; 
       
       groupRef.current.scale.lerp(new THREE.Vector3(targetScaleX, targetScaleY, targetScaleZ), lerpFactor);
     }
@@ -194,9 +210,9 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
     switch (styleId) {
       case 'fade':
         return (
-          <mesh position={[0, 0.42, 0.0]} scale={[1.0, 0.65, 1.1]}>
-            {/* Simple anatomical cap - no more groups for stability */}
-            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.7]} />
+          <mesh position={[0, 0.44, 0.05]} scale={[1.02, 0.62, 1.15]}>
+            {/* Sculpted Anatomical Cup - Ultra Soft Edges */}
+            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.6]} />
             <primitive object={shaderMaterial} attach="material" />
           </mesh>
         );

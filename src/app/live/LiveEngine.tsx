@@ -155,7 +155,7 @@ export default function LiveEngine() {
       {loading && !cameraError && (
           <div className={styles.loadingOverlay}>
               <div className={styles.spinner}></div>
-              Inicializando AR Pro v2.0 (High Performance)...
+              Inicializando AR Pro v4.5 (High Performance)...
           </div>
       )}
       
@@ -167,7 +167,7 @@ export default function LiveEngine() {
       )}
 
       <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v2.0 ✅</div>
+        <div className={styles.versionBadge}>AR Engine v4.5 ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={true} 
