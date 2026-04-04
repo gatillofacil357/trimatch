@@ -59,12 +59,18 @@ export default function HairMasker({ webcamRef, segmentationRef }: HairMaskerPro
   
   // 1. VIDEO TEXTURE
   const videoTexture = useMemo(() => {
-    const video = webcamRef.current?.video;
-    if (!video) return new THREE.Texture();
-    const tex = new THREE.VideoTexture(video);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = new THREE.Texture(); // Placeholder
     return tex;
-  }, [webcamRef]);
+  }, []);
+
+  useEffect(() => {
+    const video = webcamRef.current?.video;
+    if (video && uniforms.uVideoTexture.value) {
+       const vTex = new THREE.VideoTexture(video);
+       vTex.colorSpace = THREE.SRGBColorSpace;
+       uniforms.uVideoTexture.value = vTex;
+    }
+  }, [webcamRef, uniforms]);
 
   // 2. MASK TEXTURE (DataTexture)
   const maskTexture = useMemo(() => {
