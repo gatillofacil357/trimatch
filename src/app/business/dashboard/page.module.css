@@ -1,0 +1,26 @@
+.container { min-height: 100vh; background: var(--background); }
+.header { padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.logo { font-size: 1.25rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+.proBadge { background: var(--accent); color: #000; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 800; }
+.userMenu { color: #a3a3a3; font-weight: 600; font-size: 0.9rem; }
+.main { padding: 2rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+.topRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.title { font-size: 2rem; font-weight: 800; color: var(--foreground); }
+.upgradeBtn { background: linear-gradient(90deg, #ffcc00, #ff9900); color: #000; padding: 0.75rem 1.5rem; border-radius: 99px; font-weight: 800; font-size: 0.95rem; text-decoration: none; box-shadow: 0 4px 15px rgba(255, 153, 0, 0.3); transition: transform 0.2s; }
+.upgradeBtn:hover { transform: translateY(-2px); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+.card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 1.5rem; padding: 2rem; }
+.card h2 { font-size: 1.25rem; margin-bottom: 1.5rem; font-weight: 700; color: #fff; }
+.stats { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+.statBox { flex: 1; background: #111; border: 1px solid #333; padding: 1.5rem; border-radius: 1rem; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.statNumber { font-size: 2.5rem; font-weight: 800; color: var(--accent); margin-bottom: 0.5rem; }
+.statLabel { color: #888; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; }
+.hint { color: #ffcc00; font-size: 0.85rem; padding: 1rem; background: rgba(255, 204, 0, 0.1); border-radius: 0.75rem; line-height: 1.5; }
+.form { display: flex; flex-direction: column; gap: 1.5rem; }
+.inputGroup { display: flex; flex-direction: column; gap: 0.5rem; }
+.inputGroup label { font-size: 0.85rem; color: #a3a3a3; font-weight: 600; }
+.input { background: #111; border: 1px solid var(--border); padding: 1rem; border-radius: 0.75rem; color: #fff; font-size: 1rem; outline: none; }
+.input:focus { border-color: var(--accent); }
+.saveBtn { background: var(--foreground); color: var(--background); padding: 1rem; border-radius: 99px; font-size: 1rem; font-weight: 800; margin-top: 0.5rem; transition: background 0.2s; border: none; cursor: pointer; }
+.saveBtn:hover { background: #ccc; }
+@media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }

@@ -1,0 +1,294 @@
+.container {
+  min-height: 100vh;
+  background: #050505;
+  color: white;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid #111;
+}
+
+.backButton {
+  text-decoration: none;
+  color: #888;
+  transition: color 0.2s;
+}
+
+.backButton:hover {
+  color: #fff;
+}
+
+.main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.profileHero {
+  display: flex;
+  gap: 3rem;
+  margin-bottom: 4rem;
+}
+
+.imageWrapper {
+  flex: 0 0 300px;
+  height: 300px;
+  border-radius: 2rem;
+  overflow: hidden;
+  border: 1px solid #222;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profileInfo {
+  flex: 1;
+}
+
+.name {
+  font-size: 3rem;
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.04em;
+}
+
+.location {
+  color: #888;
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+}
+
+.statsRow {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.statLabel {
+  color: #666;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.description {
+  color: #ccc;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  font-size: 1.1rem;
+}
+
+.specialties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.specialtyTag {
+  background: rgba(0, 255, 204, 0.1);
+  color: #00ffcc;
+  padding: 0.5rem 1rem;
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.actionsSection {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 4rem;
+  padding-bottom: 4rem;
+  border-bottom: 1px solid #222;
+}
+
+.voteBtn {
+  flex: 1;
+  background: white;
+  color: black;
+  border: none;
+  padding: 1.2rem;
+  border-radius: 1rem;
+  font-weight: 800;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.voteBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(255, 255, 255, 0.1);
+}
+
+.voted {
+  background: #111;
+  color: #888;
+  border: 1px solid #222;
+  cursor: default;
+}
+
+.reviewBtn {
+  flex: 1;
+  background: transparent;
+  color: white;
+  border: 1px solid #444;
+  padding: 1.2rem;
+  border-radius: 1rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reviewBtn:hover {
+  border-color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.reviewsSection {
+  margin-top: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin-bottom: 2rem;
+}
+
+.reviewForm {
+  background: #111;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  margin-bottom: 3rem;
+  border: 1px solid #222;
+}
+
+.ratingSelect {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.star {
+  font-size: 1.5rem;
+  cursor: pointer;
+  filter: grayscale(1);
+  transition: transform 0.2s;
+}
+
+.starActive {
+  filter: grayscale(0);
+}
+
+.textarea {
+  width: 100%;
+  background: #000;
+  border: 1px solid #333;
+  border-radius: 0.8rem;
+  padding: 1rem;
+  color: white;
+  min-height: 100px;
+  margin-bottom: 1.5rem;
+  outline: none;
+}
+
+.textarea:focus {
+  border-color: #555;
+}
+
+.submitReviewBtn {
+  background: #00ffcc;
+  color: black;
+  border: none;
+  padding: 0.8rem 2rem;
+  border-radius: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.reviewCard {
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1.5rem;
+  border-radius: 1.2rem;
+  border: 1px solid #1a1a1a;
+}
+
+.reviewHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.reviewRating {
+  color: #f1c40f;
+  font-weight: 700;
+}
+
+.reviewDate {
+  color: #555;
+  font-size: 0.85rem;
+}
+
+.reviewComment {
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.loading {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #888;
+}
+
+@media (max-width: 768px) {
+  .profileHero {
+    flex-direction: column;
+    gap: 2rem;
+  }
+  .imageWrapper {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  .name {
+    font-size: 2.5rem;
+  }
+  .actionsSection {
+    flex-direction: column;
+  }
+}

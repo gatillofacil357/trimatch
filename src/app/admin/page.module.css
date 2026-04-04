@@ -1,0 +1,26 @@
+.container { min-height: 100vh; background: var(--background); display: flex; flex-direction: column; }
+.header { padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.logo { font-size: 1.25rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem; }
+.adminBadge { background: #ff3366; color: #fff; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 800; text-transform: uppercase; }
+.backLink { color: #a3a3a3; font-size: 0.9rem; text-decoration: underline; }
+.main { padding: 2rem; max-width: 1200px; margin: 0 auto; width: 100%; flex: 1; }
+.topRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+.title { font-size: 2rem; font-weight: 800; color: var(--foreground); }
+.globalStats { display: flex; gap: 1rem; background: var(--card-bg); padding: 1rem 1.5rem; border-radius: 99px; border: 1px solid var(--border); font-size: 0.9rem; font-weight: 600; }
+.globalStats span { color: #fff; }
+.tableContainer { background: var(--card-bg); border-radius: 1rem; border: 1px solid var(--border); overflow: hidden; overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; text-align: left; }
+.table th { padding: 1rem 1.5rem; background: rgba(255,255,255,0.05); color: #a3a3a3; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.table td { padding: 1.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tr:last-child td { border-bottom: none; }
+.inactiveRow td { opacity: 0.5; }
+.tableSubtext { font-size: 0.85rem; color: #888; margin-top: 0.25rem; }
+.statusBadge { padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 700; }
+.statusActive { background: rgba(37, 211, 102, 0.1); color: #25D366; border: 1px solid rgba(37, 211, 102, 0.2); }
+.statusInactive { background: rgba(255, 51, 102, 0.1); color: #ff3366; border: 1px solid rgba(255, 51, 102, 0.2); }
+.planBadge { padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.8rem; font-weight: 700; }
+.planPro { background: rgba(255, 204, 0, 0.1); color: #ffcc00; border: 1px solid rgba(255, 204, 0, 0.2); }
+.planFree { background: rgba(255, 255, 255, 0.05); color: #a3a3a3; border: 1px solid var(--border); }
+.actionBtns { display: flex; gap: 0.5rem; }
+.actionBtn { background: #333; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; cursor: pointer; transition: background 0.2s; }
+.actionBtn:hover { background: #444; }

@@ -1,0 +1,172 @@
+.bookingContainer {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  margin-top: 2rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.title {
+  font-size: 1.25rem;
+  color: #fff;
+  font-weight: 800;
+  margin-bottom: 1.5rem;
+}
+
+.dateSelector {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  scrollbar-width: thin;
+}
+
+.dateBtn {
+  background: #111;
+  border: 1px solid #333;
+  color: #a3a3a3;
+  padding: 0.75rem 1.2rem;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 70px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dateBtnActive {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.dayName {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.dayNum {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.slotsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.slot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  transition: all 0.2s;
+}
+
+.timeLabel {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.slotBusy {
+  background: #1a1a1a;
+  border-color: #333;
+  color: #666;
+  opacity: 0.7;
+}
+
+.busyLabel {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ff3366;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.busyLabel::before {
+  content: '👤';
+}
+
+.slotFree {
+  background: #222;
+  color: #fff;
+  cursor: pointer;
+}
+.slotFree:hover {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.freeLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Modal de Confirmación Incrustado */
+.confirmBox {
+  background: rgba(0, 255, 204, 0.1);
+  border: 1px solid var(--accent);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.confirmBox p {
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+.inputField {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #000;
+  border: 1px solid #333;
+  color: #fff;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  outline: none;
+}
+.inputField:focus {
+  border-color: var(--accent);
+}
+
+.confirmActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cancelBtn {
+  flex: 1;
+  background: #333;
+  color: #fff;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+.confirmBtn {
+  flex: 2;
+  background: var(--accent);
+  color: #000;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+}

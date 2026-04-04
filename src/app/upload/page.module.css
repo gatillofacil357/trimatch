@@ -1,0 +1,132 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 1.5rem;
+}
+
+.header {
+  padding: 1.5rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.backButton {
+  color: #a3a3a3;
+  font-size: 1rem;
+  transition: color 0.2s ease;
+  width: 60px;
+}
+
+.backButton:hover {
+  color: var(--accent);
+}
+
+.logo {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--foreground);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 500px;
+  margin: 0 auto;
+  width: 100%;
+  padding-bottom: 4rem;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.subtitle {
+  color: #a3a3a3;
+  margin-bottom: 2.5rem;
+  text-align: center;
+}
+
+.uploadArea {
+  width: 100%;
+  aspect-ratio: 3/4;
+  max-height: 500px;
+  border: 2px dashed var(--border);
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--card-bg);
+  overflow: hidden;
+  position: relative;
+}
+
+.uploadArea:hover {
+  border-color: var(--accent);
+  background-color: rgba(0, 255, 204, 0.02);
+}
+
+.hasPreview {
+  border-style: solid;
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.uploadPrompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #666;
+  text-align: center;
+  padding: 2rem;
+}
+
+.uploadIcon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.previewImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 1rem;
+}
+
+.continueButton {
+  margin-top: 2rem;
+  width: 100%;
+  background-color: var(--accent);
+  color: #000;
+  font-size: 1.125rem;
+  font-weight: 600;
+  padding: 1rem;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+  animation: slideUp 0.3s ease-out;
+}
+
+.continueButton:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 255, 204, 0.4);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

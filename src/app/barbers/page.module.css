@@ -1,0 +1,312 @@
+.container {
+  min-height: 100vh;
+  background-color: #050505;
+  color: #fff;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 1px solid #111;
+}
+
+.backButton {
+  text-decoration: none;
+  color: #888;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.backButton:hover {
+  color: #fff;
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  background: linear-gradient(135deg, #fff 0%, #888 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.registerLink {
+  color: #00ffcc;
+  text-decoration: none;
+  font-size: 0.9rem;
+  border: 1px solid rgba(0, 255, 204, 0.3);
+  padding: 0.5rem 1rem;
+  border-radius: 99px;
+  transition: all 0.2s;
+}
+
+.registerLink:hover {
+  background: rgba(0, 255, 204, 0.1);
+  border-color: #00ffcc;
+}
+
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.hero {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.title {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 900;
+  margin-bottom: 1rem;
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  color: #888;
+  max-width: 600px;
+  margin: 0 auto;
+  font-size: 1.125rem;
+}
+
+.selectionBadge {
+  margin-top: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.75rem 1.5rem;
+  border-radius: 99px;
+  color: #888;
+  font-size: 0.875rem;
+}
+
+.selectionBadge strong {
+  color: #00ffcc;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 2.5rem;
+}
+
+.card {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 2rem;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover {
+  transform: translateY(-10px);
+  border-color: #444;
+  background: #161616;
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
+}
+
+.matchedCard {
+  border-color: rgba(0, 255, 204, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 204, 0.05);
+}
+
+.imageWrapper {
+  position: relative;
+  aspect-ratio: 16/10;
+  overflow: hidden;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card:hover .image {
+  transform: scale(1.1);
+}
+
+.medalBadge {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  background: white;
+  color: #000;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+.topVotedBadge {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  background: #f1c40f;
+  color: #000;
+  padding: 0.4rem 1rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.matchBadge {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: #00ffcc;
+  color: #000;
+  padding: 0.4rem 1rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.info {
+  padding: 1.75rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.infoHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.name {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.price {
+  color: #aaa;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.location {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.badgeRow {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.rating {
+  font-weight: 800;
+  color: #fff;
+  font-size: 1.125rem;
+}
+
+.reviews {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.votesCount {
+  color: #888;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+}
+
+.stylesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.styleTag {
+  background: #1a1a1a;
+  color: #999;
+  font-size: 0.7rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 99px;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border: 1px solid #222;
+}
+
+.loading {
+  font-size: 1.5rem;
+  height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 2rem;
+  border: 1px dashed #333;
+}
+
+.emptyState p {
+  color: #888;
+  margin-bottom: 2rem;
+  font-size: 1.2rem;
+}
+
+.submitBtn {
+  background: white;
+  color: black;
+  padding: 1rem 2rem;
+  border-radius: 0.8rem;
+  text-decoration: none;
+  font-weight: 700;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+
+.submitBtn:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 2rem 1rem;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
