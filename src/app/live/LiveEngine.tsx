@@ -73,7 +73,7 @@ export default function LiveEngine() {
             trackingRef.current.matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
           }
           
-          // 2. SEGMENTATION (v6.1.1)
+          // 2. SEGMENTATION (v6.2)
           if (imageSegmenter) {
             imageSegmenter.segmentForVideo(video, time, (result) => {
                const mask = result.categoryMask;
@@ -120,7 +120,7 @@ export default function LiveEngine() {
         setAnalysis(result);
       }
     } catch (e) {
-      console.error("Capture error:", e);
+      console.error("Capture analysis error:", e);
     }
     setIsCapturing(false);
   };
@@ -132,12 +132,12 @@ export default function LiveEngine() {
       {isLoading && (
           <div className={styles.loadingOverlay}>
               <div className={styles.spinner}></div>
-              Inicializando AR v6.1.1 (Replacement Engine)...
+              Inicializando AR v6.2 (Anatomical Fit)...
           </div>
       )}
 
       <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v6.1.1 ✅</div>
+        <div className={styles.versionBadge}>AR Engine v6.2 ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={true} 
@@ -162,7 +162,7 @@ export default function LiveEngine() {
                 <ambientLight intensity={1.5} />
                 <pointLight position={[10, 10, 10]} intensity={1} />
                 
-                {/* 1. Video background with Hair Erasing */}
+                {/* 1. LAYER: Video background Replacement */}
                 <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
 
                 {/* 2. Realism layers */}
