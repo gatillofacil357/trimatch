@@ -73,7 +73,7 @@ export default function LiveEngine() {
             trackingRef.current.matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
           }
           
-          // 2. SEGMENTATION (v9.0)
+          // 2. SEGMENTATION (v9.0.1)
           if (imageSegmenter) {
             imageSegmenter.segmentForVideo(video, time, (result) => {
                const mask = result.categoryMask;
@@ -132,12 +132,12 @@ export default function LiveEngine() {
       {isLoading && (
           <div className={styles.loadingOverlay}>
               <div className={styles.spinner}></div>
-              Inicializando Motor v9.0 (Photo-Realism)...
+              Inicializando AR v9.0.1 (Photo-Realism)...
           </div>
       )}
 
       <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v9.0 ✅</div>
+        <div className={styles.versionBadge}>AR Engine v9.0.1 ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={true} 
