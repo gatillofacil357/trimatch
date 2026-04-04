@@ -10,7 +10,7 @@ import HairMesh from '@/components/HairMesh';
 import FaceOccluder from '@/components/FaceOccluder';
 import StyleSearch from '@/components/StyleSearch';
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
-import { analyzeFaceShape, AnalysisResult, FaceMetrics } from '@/utils/FaceShapeAnalyzer';
+import { analyzeFaceShape, AnalysisResult, FaceMetrics, saveAnalysis, getStoredAnalysis } from '@/utils/FaceShapeAnalyzer';
 import { supabase, Barber } from '@/utils/supabase';
 import styles from './page.module.css';
 
@@ -36,7 +36,7 @@ function TryOnStudioContent() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('Iniciando...');
   const [faceData, setFaceData] = useState<any>(null);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(getStoredAnalysis());
   const [activeStyle, setActiveStyle] = useState(HAIRSTYLES[0].id);
   const [activeColor, setActiveColor] = useState(COLORS[0]);
   const [compareMode, setCompareMode] = useState(false);
@@ -58,6 +58,15 @@ function TryOnStudioContent() {
   useEffect(() => {
     trackingRef.current.viewport = containerSize;
   }, [containerSize]);
+
+  useEffect(() => {
+    const savedImg = sessionStorage.getItem('trimatch_image');
+    if (savedImg) {
+      setImageSrc(savedImg);
+    } else {
+      setLoadingMsg('No se encontró la foto. Por favor, subí una nuevamente.');
+    }
+  }, []);
 
   // Detection
   useEffect(() => {
@@ -91,6 +100,7 @@ function TryOnStudioContent() {
 
                 const result = analyzeFaceShape(currentLandmarks);
                 setAnalysis(result);
+                saveAnalysis(result); // Persist for session recovery
                 setActiveStyle(result.recommendations[0]);
                 
                 // (Previous faceData logic omitted if redundant with ref, but keeping for compatibility if used elsewhere)

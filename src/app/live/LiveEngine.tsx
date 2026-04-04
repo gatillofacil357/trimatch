@@ -34,6 +34,8 @@ export default function LiveEngine() {
   const [activeStyle, setActiveStyle] = useState(HAIRSTYLES[0].id);
   const [activeColor, setActiveColor] = useState(COLORS[0].hex);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [performanceMode, setPerformanceMode] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   
   // HIGH-PERFORMANCE TRACKING REFS
   // This ref is the source of truth for the AR overlay, bypassing React re-renders.
@@ -55,11 +57,16 @@ export default function LiveEngine() {
   useEffect(() => {
     let animationFrameId: number;
     let lastVideoTime = -1;
+    let frameCount = 0;
 
     const renderLoop = (time: number) => {
       const video = webcamRef.current?.video;
       if (video && video.readyState === 4 && faceLandmarker) {
-        if (lastVideoTime !== video.currentTime) {
+        // PERFORMANCE OVERRIDE: Skip every other frame if in performance mode
+        frameCount++;
+        const shouldProcess = !performanceMode || (frameCount % 2 === 0);
+
+        if (lastVideoTime !== video.currentTime && shouldProcess) {
           lastVideoTime = video.currentTime;
           try {
             const results = faceLandmarker.detectForVideo(video, time);
@@ -103,7 +110,45 @@ export default function LiveEngine() {
 
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, [faceLandmarker]); // Removed analysis dependency
+  }, [faceLandmarker, performanceMode]); 
+
+  const handleCapture = async () => {
+    if (!webcamRef.current || !webcamRef.current.video) return;
+    setIsCapturing(true);
+    
+    try {
+      const video = webcamRef.current.video;
+      const canvas = document.querySelector('canvas');
+      if (!canvas) return;
+
+      // Create a temporary canvas to combine video + 3D
+      const captureCanvas = document.createElement('canvas');
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      const ctx = captureCanvas.getContext('2d');
+      if (!ctx) return;
+
+      // 1. Draw Video (mirrored)
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -video.videoWidth, 0, video.videoWidth, video.videoHeight);
+      ctx.restore();
+
+      // 2. Draw 3D Overlay
+      // Three.js canvas matches the container size, we need to scale it to video size
+      ctx.drawImage(canvas, 0, 0, video.videoWidth, video.videoHeight);
+
+      // 3. Download
+      const link = document.createElement('a');
+      link.download = `trimatch-style-${activeStyle}-${Date.now()}.png`;
+      link.href = captureCanvas.toDataURL('image/png');
+      link.click();
+    } catch (e) {
+      console.error("Capture error:", e);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
 
   return (
     <div className={styles.liveContainer}>
@@ -137,6 +182,16 @@ export default function LiveEngine() {
                 Rostro: <strong>{analysis.shape.toUpperCase()}</strong>
             </div>
         )}
+
+        <div className={styles.captureOverlay}>
+            <button 
+              className={`${styles.captureBtn} ${isCapturing ? styles.capturing : ''}`}
+              onClick={handleCapture}
+              disabled={isCapturing}
+            >
+              {isCapturing ? '📷...' : '📷 Sacar Foto'}
+            </button>
+        </div>
 
         <div className={styles.canvasOverlay}>
           <Canvas 
@@ -175,6 +230,12 @@ export default function LiveEngine() {
             <div className={styles.groupHeader}>
                 <h3>Estilos Ideales</h3>
                 {analysis && <span className={styles.recBadge}>{analysis.shape} ✨</span>}
+                <button 
+                  className={`${styles.perfModeBtn} ${performanceMode ? styles.perfActive : ''}`}
+                  onClick={() => setPerformanceMode(!performanceMode)}
+                >
+                  {performanceMode ? '⚡ Modo Ahorro: ON' : '🔋 Modo Ahorro: OFF'}
+                </button>
             </div>
             <div className={styles.carousel}>
               {HAIRSTYLES.map(style => {

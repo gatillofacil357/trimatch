@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Webcam from 'react-webcam';
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
-import { analyzeFaceShape, AnalysisResult, FaceShape } from '@/utils/FaceShapeAnalyzer';
+import { analyzeFaceShape, AnalysisResult, FaceShape, saveAnalysis } from '@/utils/FaceShapeAnalyzer';
 import styles from './page.module.css';
 
 const ANALYSIS_DURATION = 3000; // 3 seconds to stabilize
@@ -15,9 +15,12 @@ export default function AnalyzePage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('Iniciando cámara...');
-  const [resultsBuffer, setResultsBuffer] = useState<AnalysisResult[]>([]);
+  const resultsBufferRef = useRef<AnalysisResult[]>([]);
 
   const handleAnalysisComplete = useCallback((finalResult: AnalysisResult) => {
+    // Save to localStorage for persistence
+    saveAnalysis(finalResult);
+    
     // Save identifying info to session storage for the results page
     const metricsStr = encodeURIComponent(JSON.stringify(finalResult.metrics));
     router.push(`/results?shape=${finalResult.shape}&metrics=${metricsStr}`);
@@ -35,7 +38,12 @@ export default function AnalyzePage() {
         const now = Date.now();
         const elapsed = now - startTime;
         const currentProgress = Math.min((elapsed / ANALYSIS_DURATION) * 100, 100);
-        setProgress(currentProgress);
+        
+        // Only update progress state if it changed significantly (every 1%)
+        setProgress(prev => {
+          const next = Math.floor(currentProgress);
+          return next !== prev ? next : prev;
+        });
 
         if (webcamRef.current?.video?.readyState === 4) {
             const video = webcamRef.current.video;
@@ -43,10 +51,15 @@ export default function AnalyzePage() {
             
             if (results.faceLandmarks && results.faceLandmarks.length > 0) {
                 const analysis = analyzeFaceShape(results.faceLandmarks[0]);
-                setResultsBuffer(prev => [...prev, analysis].slice(-10)); // Keep last 10 samples
-                setStatus(`Analizando: ${analysis.shape.charAt(0).toUpperCase() + analysis.shape.slice(1)}`);
+                resultsBufferRef.current = [...resultsBufferRef.current, analysis].slice(-10);
+                
+                // Update status only if face shape changes
+                setStatus(prev => {
+                  const nextStatus = `Analizando: ${analysis.shape.charAt(0).toUpperCase() + analysis.shape.slice(1)}`;
+                  return prev !== nextStatus ? nextStatus : prev;
+                });
             } else {
-                setStatus('Buscando rostro...');
+                setStatus(prev => prev !== 'Buscando rostro...' ? 'Buscando rostro...' : prev);
             }
         }
 
@@ -54,11 +67,12 @@ export default function AnalyzePage() {
             animationFrameId = requestAnimationFrame(runAnalysis);
         } else {
             // End of analysis - find most frequent shape in buffer
-            if (resultsBuffer.length > 0) {
+            const buffer = resultsBufferRef.current;
+            if (buffer.length > 0) {
                 const counts: Record<string, number> = {};
-                resultsBuffer.forEach(r => counts[r.shape] = (counts[r.shape] || 0) + 1);
+                buffer.forEach(r => counts[r.shape] = (counts[r.shape] || 0) + 1);
                 const mostFrequentShape = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b) as FaceShape;
-                const finalResult = resultsBuffer.find(r => r.shape === mostFrequentShape) || resultsBuffer[0];
+                const finalResult = buffer.find(r => r.shape === mostFrequentShape) || buffer[0];
                 handleAnalysisComplete(finalResult);
             } else {
                 // Retry if no face found
@@ -70,7 +84,7 @@ export default function AnalyzePage() {
 
     animationFrameId = requestAnimationFrame(runAnalysis);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [faceLandmarker, loading, handleAnalysisComplete, resultsBuffer]);
+  }, [faceLandmarker, loading, handleAnalysisComplete]);
 
   if (error) {
     return (

@@ -89,3 +89,20 @@ export const analyzeFaceShape = (landmarks: any[]): AnalysisResult => {
     recommendations: recommendationsMap[shape]
   };
 };
+
+// PERSISTENCE HELPERS
+const STORAGE_KEY = 'trimatch_last_analysis';
+
+export const saveAnalysis = (result: AnalysisResult) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+  }
+};
+
+export const getStoredAnalysis = (): AnalysisResult | null => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  }
+  return null;
+};
