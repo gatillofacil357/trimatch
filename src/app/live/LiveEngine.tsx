@@ -6,7 +6,7 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // Components
-import HairMesh from '@/components/HairMesh';
+import HairOverlay2D from '@/components/HairOverlay2D';
 import HairMasker from '@/components/HairMasker';
 import FaceOccluder from '@/components/FaceOccluder';
 
@@ -73,7 +73,7 @@ export default function LiveEngine() {
             trackingRef.current.matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
           }
           
-          // 2. SEGMENTATION (v7.0 Sculpting)
+          // 2. SEGMENTATION (v9.0)
           if (imageSegmenter) {
             imageSegmenter.segmentForVideo(video, time, (result) => {
                const mask = result.categoryMask;
@@ -132,12 +132,12 @@ export default function LiveEngine() {
       {isLoading && (
           <div className={styles.loadingOverlay}>
               <div className={styles.spinner}></div>
-              Inicializando AR v7.0 (Sculpting Engine)...
+              Inicializando Motor v9.0 (Photo-Realism)...
           </div>
       )}
 
       <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v7.0 ✅</div>
+        <div className={styles.versionBadge}>AR Engine v9.0 ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={true} 
@@ -153,28 +153,31 @@ export default function LiveEngine() {
         )}
 
         {mpInitialized && (
-          <div className={styles.canvasContainer}>
-            <Canvas 
-               camera={{ position: [0, 0, 5], fov: 50 }} 
-               dpr={[1, 2]}
-               style={{ width: '100%', height: '100%' }}
-            >
-                <ambientLight intensity={1.5} />
-                <pointLight position={[10, 10, 10]} intensity={1} />
-                
-                {/* 1. LAYER: Video background Replacement */}
-                <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
+          <>
+            {/* 1. LAYER: 2D OVERLAY (Topmost Photo-Realism) */}
+            <HairOverlay2D 
+                styleId={activeStyle} 
+                trackingRef={trackingRef} 
+            />
 
-                {/* 2. Realism layers */}
-                <FaceOccluder trackingRef={trackingRef} />
-                <HairMesh 
-                  styleId={activeStyle} 
-                  color={activeColor} 
-                  trackingRef={trackingRef}
-                  shape={analysis?.shape}
-                />
-            </Canvas>
-          </div>
+            {/* 2. LAYER: Background & Occlusion (3D Engine) */}
+            <div className={styles.canvasContainer}>
+              <Canvas 
+                 camera={{ position: [0, 0, 5], fov: 50 }} 
+                 dpr={[1, 2]}
+                 style={{ width: '100%', height: '100%' }}
+              >
+                  <ambientLight intensity={1.5} />
+                  <pointLight position={[10, 10, 10]} intensity={1} />
+                  
+                  {/* Video replacement (Erase live hair) */}
+                  <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
+
+                  {/* Face Occlusion */}
+                  <FaceOccluder trackingRef={trackingRef} />
+              </Canvas>
+            </div>
+          </>
         )}
       </div>
 
