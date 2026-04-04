@@ -109,7 +109,7 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
     uBaseColor: { value: colors.main },
     uRootColor: { value: colors.root },
     uAlpha: { value: 1.0 },
-    uBrightness: { value: 1.25 }, // Slightly softer brightness for realism
+    uBrightness: { value: 2.2 }, // Boosted for visibility
     uTime: { value: 0 }
   }), [colors]);
 
@@ -140,13 +140,18 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       // 3. SMOOTHING (Lerp/Slerp)
       const lerpFactor = 0.25; 
       
-      // POSITION: Lowered and pushed back slightly to hug the skull
-      groupRef.current.position.lerp(new THREE.Vector3(nx, ny - 0.18, nz - 0.1), lerpFactor);
+      // POSITION: CRITICAL FIX - Much lower to sit ON the hairline
+      // We target landmark 10 (top forehead) as the very top of the scalp, 
+      // so the hair group must be lowered even more.
+      const anchorY = ny - 0.45; // Significantly lower
+      const anchorZ = nz - 0.15; // Closer to face
       
-      // ROTATION: Use tracking matrix quaternion
+      groupRef.current.position.lerp(new THREE.Vector3(nx, anchorY, anchorZ), lerpFactor);
+      
+      // ROTATION: Sync tilt more naturally
       const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
       const targetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-euler.x * 0.85, euler.y, -euler.z, 'XYZ') // Sync tilt
+        new THREE.Euler(-euler.x * 0.9, euler.y, -euler.z, 'XYZ')
       );
       groupRef.current.quaternion.slerp(targetQuat, lerpFactor);
 
@@ -167,8 +172,8 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       else if (shape === 'cuadrado') { scaleX = 1.04; }
       
       const targetScaleX = headWidthScale * scaleX;
-      const targetScaleY = headWidthScale * scaleY;
-      const targetScaleZ = headWidthScale * 1.05; 
+      const targetScaleY = headWidthScale * scaleY * 1.15; // More vertical coverage
+      const targetScaleZ = headWidthScale * 1.15; // Depth
       
       groupRef.current.scale.lerp(new THREE.Vector3(targetScaleX, targetScaleY, targetScaleZ), lerpFactor);
     }
@@ -192,19 +197,19 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       case 'fade':
         return (
           <group>
-            {/* Top Volume - Anatomical Oval */}
-            <mesh position={[0, 0.48, 0.08]} scale={[0.88, 0.6, 1.25]}>
+            {/* Top Volume - Sitting lower */}
+            <mesh position={[0, 0.28, 0.05]} scale={[0.9, 0.5, 1.2]}>
                 <sphereGeometry args={[0.5, 64, 32]} />
                 <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            {/* Tapered Sides - Cylinder-based for flat transition */}
-            <mesh position={[0, 0.32, -0.05]} rotation={[0, 0, 0]} scale={[1.15, 0.45, 1.15]}>
-                <cylinderGeometry args={[0.48, 0.52, 1, 64, 1, true]} />
+            {/* Tapered Sides - More anatomical */}
+            <mesh position={[0, 0.12, -0.05]} scale={[1.05, 0.5, 1.05]}>
+                <cylinderGeometry args={[0.45, 0.52, 1, 64, 1, true]} />
                 <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            {/* Scalp Integration (Feathered base) */}
-            <mesh position={[0, 0.28, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1.1, 1.15, 0.1]}>
-                <torusGeometry args={[0.5, 0.05, 16, 100]} />
+            {/* Base blending ring */}
+            <mesh position={[0, -0.05, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1.05, 1.1, 0.1]}>
+                <torusGeometry args={[0.5, 0.02, 16, 64]} />
                 <primitive object={shaderMaterial} attach="material" />
             </mesh>
           </group>
