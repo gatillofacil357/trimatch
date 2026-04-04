@@ -4,11 +4,12 @@ import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 
-// PRO ENGINE SHADER: High-Fidelity Anisotropic + Ambient Occlusion integration
+// PRO ENGINE SHADER v3.0: High-Fidelity Anisotropic + Strand Texture + Rim Light
 const hairVertexShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vViewDir;
+  varying vec3 vWorldPos;
   varying vec3 vTangent;
   uniform float uTime;
 
@@ -16,16 +17,17 @@ const hairVertexShader = `
     vUv = uv;
     vec3 pos = position;
     
-    // Smooth procedural sway
-    float sway = sin(uTime * 2.0 + pos.y * 3.0) * 0.008 * step(0.2, pos.y);
+    // Micro-sway for life-like movement
+    float sway = sin(uTime * 1.5 + pos.y * 5.0) * 0.005 * step(0.1, pos.y);
     pos.x += sway;
 
-    vec4 worldPosition = modelMatrix * vec4(pos, 1.0);
+    vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+    vWorldPos = worldPos.xyz;
     vNormal = normalize(normalMatrix * normal);
-    vViewDir = normalize(cameraPosition - worldPosition.xyz);
+    vViewDir = normalize(cameraPosition - vWorldPos);
     vTangent = normalize(normalMatrix * vec3(0.0, 1.0, 0.0));
     
-    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
   }
 `;
 
@@ -33,6 +35,7 @@ const hairFragmentShader = `
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vViewDir;
+  varying vec3 vWorldPos;
   varying vec3 vTangent;
 
   uniform vec3 uBaseColor;
@@ -40,34 +43,41 @@ const hairFragmentShader = `
   uniform float uAlpha;
   uniform float uBrightness;
 
-  void main() {
-    // 1. Root-to-Tip Gradient
-    float mixFactor = clamp(vUv.y * 1.5, 0.0, 1.0);
-    vec3 baseColor = mix(uRootColor, uBaseColor, mixFactor);
+  // Pseudo-random noise for strands
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+  }
 
-    // 2. Kajiya-Kay Anisotropy (Highlights)
-    vec3 L = normalize(vec3(0.5, 1.5, 0.5)); 
+  void main() {
     vec3 V = normalize(vViewDir);
+    vec3 N = normalize(vNormal);
     vec3 T = normalize(vTangent);
+    
+    // 1. ANISOTROPIC HIGHLIGHTS (Kajiya-Kay)
+    vec3 L = normalize(vec3(0.5, 2.0, 1.0)); // Top-front light
     float dotLT = dot(L, T);
     float dotVT = dot(V, T);
-    float sinLT = sqrt(1.0 - dotLT * dotLT);
-    float sinVT = sqrt(1.0 - dotVT * dotVT);
-    float strandSpec = pow(max(0.0, dotLT * dotVT + sinLT * sinVT), 35.0);
+    float highlight = pow(max(0.0, dotLT * dotVT + sqrt(1.0 - dotLT*dotLT) * sqrt(1.0 - dotVT*dotVT)), 40.0);
     
-    // 3. Hair Texture Grain
-    float noise = fract(sin(dot(vUv.xy * 20.0, vec2(12.9898, 78.233))) * 43758.5453);
-    
-    // 4. Soft Transparency for better skin blending
-    float edgeAlpha = smoothstep(0.0, 0.25, vUv.y); 
-    
-    // 5. Ambient Occlusion (Darken the hairline contact)
-    float ao = smoothstep(0.1, 0.45, vUv.y);
+    // 2. STRAND TEXTURE
+    float strand = hash(vec2(vUv.x * 250.0, vUv.y * 10.0));
+    float grain = mix(0.85, 1.15, strand);
 
-    vec3 litColor = (baseColor * 1.6 * uBrightness * ao) + (strandSpec * 0.25);
-    litColor += noise * 0.05;
+    // 3. COLOR GRADIENT (Root to Tip)
+    float mixFactor = clamp(vUv.y * 1.2, 0.0, 1.0);
+    vec3 baseColor = mix(uRootColor, uBaseColor, mixFactor);
+    
+    // 4. RIM LIGHTING (Depth & Separation)
+    float rim = 1.0 - max(0.0, dot(V, N));
+    rim = pow(rim, 4.0) * 0.4;
 
-    gl_FragColor = vec4(litColor, uAlpha * edgeAlpha);
+    // 5. FEATHERING (Soft edges for scalp blending)
+    float feather = smoothstep(0.0, 0.35, vUv.y); 
+    
+    // Final Composition
+    vec3 finalColor = (baseColor * uBrightness * grain) + (highlight * 0.3) + (rim * vec3(1.0));
+    
+    gl_FragColor = vec4(finalColor, uAlpha * feather);
   }
 `;
 
@@ -124,13 +134,13 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       // 3. SMOOTHING (Lerp/Slerp)
       const lerpFactor = 0.3; // Responsive smoothing
       
-      // Update Position
-      groupRef.current.position.lerp(new THREE.Vector3(nx, ny - 0.05, nz), lerpFactor);
+      // Update Position (Offset lowered to sit on the hairline)
+      groupRef.current.position.lerp(new THREE.Vector3(nx, ny - 0.22, nz), lerpFactor);
       
-      // Update Rotation (Extract and flip Y rotation for mirrored mode)
+      // Update Rotation
       const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
       const targetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-euler.x, euler.y, -euler.z, 'XYZ')
+        new THREE.Euler(-euler.x * 0.8, euler.y, -euler.z, 'XYZ') // Reduced X tilt for stability
       );
       groupRef.current.quaternion.slerp(targetQuat, lerpFactor);
 
@@ -142,30 +152,30 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
         Math.pow(rightTemple.y - leftTemple.y, 2)
       );
       
-      const baseScale = templeDist * viewport.vWidth * 1.35;
+      const baseScale = templeDist * viewport.vWidth * 1.45; // Slightly larger for better coverage
       
       // Face Shape Modifiers
       let scaleX = 1.0;
       let scaleY = 1.0;
       
       if (shape === 'redondo') {
-        scaleY = 1.12; // Compensate roundness with vertical volume
-        scaleX = 0.96;
+        scaleY = 1.15; 
+        scaleX = 0.94;
       } else if (shape === 'alargado') {
-        scaleX = 1.08; // Add width to balance length
-        scaleY = 0.92;
+        scaleX = 1.12; 
+        scaleY = 0.88;
       } else if (shape === 'cuadrado') {
-        scaleX = 1.04;
+        scaleX = 1.06;
       } else if (shape === 'corazon') {
-        scaleX = 1.05;
-        scaleY = 1.05;
+        scaleX = 1.08;
+        scaleY = 1.02;
       } else if (shape === 'diamante') {
-        scaleX = 1.1;
+        scaleX = 1.15;
       }
 
       const targetScaleX = baseScale * scaleX;
       const targetScaleY = baseScale * scaleY;
-      const targetScaleZ = baseScale; // Keep Z depth stable
+      const targetScaleZ = baseScale * 1.1; // More depth
       
       groupRef.current.scale.x = THREE.MathUtils.lerp(groupRef.current.scale.x, targetScaleX, lerpFactor);
       groupRef.current.scale.y = THREE.MathUtils.lerp(groupRef.current.scale.y, targetScaleY, lerpFactor);
@@ -180,18 +190,19 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       vertexShader: hairVertexShader,
       fragmentShader: hairFragmentShader,
       transparent: true,
-      side: THREE.FrontSide
+      side: THREE.FrontSide, // FrontSide for hair strands
+      depthWrite: true,
     });
   }, [uniforms]);
 
   const renderStyle = () => {
-    // PRO COMPOSITE GEOMETRIES: Multiple parts to follow the skull 3D surface
+    // PRO GEOMETRY: Anatomical scalp-hugging shapes
     switch (styleId) {
       case 'fade':
       case 'buzz':
         return (
-          <mesh position={[0, 0.48, 0.05]} scale={[1.08, 0.52, 1.25]}>
-            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.8]} />
+          <mesh position={[0, 0.45, 0.0]} scale={[1.0, 0.6, 1.1]}>
+            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.7]} />
             <primitive object={shaderMaterial} attach="material" />
           </mesh>
         );
@@ -199,12 +210,12 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
         return (
           <group>
             {/* Top Volume */}
-            <mesh position={[0, 0.65, 0.1]} scale={[0.88, 0.42, 1.25]}>
+            <mesh position={[0, 0.6, 0.15]} scale={[0.85, 0.5, 1.2]}>
                <sphereGeometry args={[0.5, 64, 32]} />
                <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            {/* Side Taper */}
-            <mesh position={[0, 0.38, 0]} scale={[1.15, 0.48, 1.15]}>
+            {/* Sides */}
+            <mesh position={[0, 0.35, 0]} scale={[1.1, 0.5, 1.1]}>
                <sphereGeometry args={[0.55, 64, 16, 0, Math.PI * 2, 0, Math.PI / 2.2]} />
                <primitive object={shaderMaterial} attach="material" />
             </mesh>
@@ -213,14 +224,14 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       case 'pompadour':
         return (
           <group>
-            {/* Massive Front Volume */}
-            <mesh position={[0, 0.72, 0.15]} scale={[0.85, 0.75, 1.35]}>
+            {/* Front Quiff */}
+            <mesh position={[0, 0.65, 0.25]} scale={[0.8, 0.8, 1.3]}>
                <sphereGeometry args={[0.55, 64, 64]} />
                <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            {/* Scalp Hugger */}
-            <mesh position={[0, 0.46, 0]} scale={[1.08, 0.52, 1.15]}>
-               <sphereGeometry args={[0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2.5]} />
+            {/* Base */}
+            <mesh position={[0, 0.4, 0]} scale={[1.05, 0.55, 1.1]}>
+               <sphereGeometry args={[0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2.4]} />
                <primitive object={shaderMaterial} attach="material" />
             </mesh>
           </group>
