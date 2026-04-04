@@ -98,10 +98,10 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       const ny = -(forehead.y - 0.5) * viewport.vHeight;
       const nz = -nose.z * 4.8;
 
-      // POSITION: v5.2 SCALP HUGGING
-      const lerpFactor = 0.3;
-      // Subtracting 0.35 from ny to bring the group down to the forehead level
-      const targetPos = new THREE.Vector3(nx, ny - 0.35, nz + 0.5); 
+      // POSITION: v6.2 LOW LANDING
+      const lerpFactor = 0.25;
+      // Bringing the hair much lower to the forehead level (near eyebrows)
+      const targetPos = new THREE.Vector3(nx, ny - 0.75, nz + 0.65); 
       groupRef.current.position.lerp(targetPos, lerpFactor);
       
       // ROTATION
@@ -113,13 +113,13 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
           groupRef.current.quaternion.slerp(quat, lerpFactor);
       }
 
-      // SCALE
+      // SCALE: v6.2 WIDER & FLATTER (Fade Profile)
       const templeDist = Math.sqrt(
         Math.pow(rightTemple.x - leftTemple.x, 2) + 
         Math.pow(rightTemple.y - leftTemple.y, 2)
       );
-      const headWidthScale = templeDist * viewport.vWidth * 1.52; 
-      const targetScale = new THREE.Vector3(headWidthScale * 1.02, headWidthScale * 0.65, headWidthScale * 1.1);
+      const baseScale = templeDist * viewport.vWidth * 1.45; 
+      const targetScale = new THREE.Vector3(baseScale * 1.15, baseScale * 0.55, baseScale * 1.15);
       groupRef.current.scale.lerp(targetScale, lerpFactor);
     }
   });
@@ -139,8 +139,8 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
 
   const renderStyle = () => {
     return (
-      <mesh position={[0, 0.3, 0.0]} scale={[1.0, 1.0, 1.0]}>
-        <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.85]} />
+      <mesh position={[0, 0.55, 0.0]}>
+        <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2.1]} />
         <primitive object={shaderMaterial} attach="material" />
       </mesh>
     );
