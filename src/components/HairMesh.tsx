@@ -109,7 +109,7 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
     uBaseColor: { value: colors.main },
     uRootColor: { value: colors.root },
     uAlpha: { value: 1.0 },
-    uBrightness: { value: 1.35 },
+    uBrightness: { value: 1.25 }, // Slightly softer brightness for realism
     uTime: { value: 0 }
   }), [colors]);
 
@@ -122,64 +122,55 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
       const scale = new THREE.Vector3();
       matrix.decompose(pos, quat, scale);
 
-      // 2. MIRRORING & POSITIONING (Using Forehead Anchor 10)
+      // 2. ANATOMICAL ANCHORING (Scalp Center)
+      // We use the midpoint between temples (234, 454) as the horizontal center
+      // And the forehead (10) as the vertical birth point.
       const forehead = landmarks[10];
-      const nose = landmarks[1];
+      const leftTemple = landmarks[234];
+      const rightTemple = landmarks[454];
       
       // Flip X for Mirrored mode
       const nx = (0.5 - forehead.x) * viewport.vWidth; 
       const ny = -(forehead.y - 0.5) * viewport.vHeight;
-      const nz = -nose.z * 5.0;
+      
+      // Calculate depth from nose (landmark 1) and average forehead Z
+      const nose = landmarks[1];
+      const nz = -nose.z * 4.5; // Depth factor
 
       // 3. SMOOTHING (Lerp/Slerp)
-      const lerpFactor = 0.3; // Responsive smoothing
+      const lerpFactor = 0.25; 
       
-      // Update Position (Offset lowered to sit on the hairline)
-      groupRef.current.position.lerp(new THREE.Vector3(nx, ny - 0.22, nz), lerpFactor);
+      // POSITION: Lowered and pushed back slightly to hug the skull
+      groupRef.current.position.lerp(new THREE.Vector3(nx, ny - 0.18, nz - 0.1), lerpFactor);
       
-      // Update Rotation
+      // ROTATION: Use tracking matrix quaternion
       const euler = new THREE.Euler().setFromQuaternion(quat, 'XYZ');
       const targetQuat = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-euler.x * 0.8, euler.y, -euler.z, 'XYZ') // Reduced X tilt for stability
+        new THREE.Euler(-euler.x * 0.85, euler.y, -euler.z, 'XYZ') // Sync tilt
       );
       groupRef.current.quaternion.slerp(targetQuat, lerpFactor);
 
-      // 4. DYNAMIC SCALE (Temple Dist: 234 to 454) + SHAPE ADJUSTMENTS
-      const leftTemple = landmarks[234];
-      const rightTemple = landmarks[454];
+      // 4. DYNAMIC SCALE (Anatomical Width)
       const templeDist = Math.sqrt(
         Math.pow(rightTemple.x - leftTemple.x, 2) + 
         Math.pow(rightTemple.y - leftTemple.y, 2)
       );
       
-      const baseScale = templeDist * viewport.vWidth * 1.45; // Slightly larger for better coverage
+      const headWidthScale = templeDist * viewport.vWidth * 1.52; // Exact width from temples
       
       // Face Shape Modifiers
       let scaleX = 1.0;
       let scaleY = 1.0;
       
-      if (shape === 'redondo') {
-        scaleY = 1.15; 
-        scaleX = 0.94;
-      } else if (shape === 'alargado') {
-        scaleX = 1.12; 
-        scaleY = 0.88;
-      } else if (shape === 'cuadrado') {
-        scaleX = 1.06;
-      } else if (shape === 'corazon') {
-        scaleX = 1.08;
-        scaleY = 1.02;
-      } else if (shape === 'diamante') {
-        scaleX = 1.15;
-      }
-
-      const targetScaleX = baseScale * scaleX;
-      const targetScaleY = baseScale * scaleY;
-      const targetScaleZ = baseScale * 1.1; // More depth
+      if (shape === 'redondo') { scaleY = 1.08; scaleX = 0.96; }
+      else if (shape === 'alargado') { scaleX = 1.05; scaleY = 0.92; }
+      else if (shape === 'cuadrado') { scaleX = 1.04; }
       
-      groupRef.current.scale.x = THREE.MathUtils.lerp(groupRef.current.scale.x, targetScaleX, lerpFactor);
-      groupRef.current.scale.y = THREE.MathUtils.lerp(groupRef.current.scale.y, targetScaleY, lerpFactor);
-      groupRef.current.scale.z = THREE.MathUtils.lerp(groupRef.current.scale.z, targetScaleZ, lerpFactor);
+      const targetScaleX = headWidthScale * scaleX;
+      const targetScaleY = headWidthScale * scaleY;
+      const targetScaleZ = headWidthScale * 1.05; 
+      
+      groupRef.current.scale.lerp(new THREE.Vector3(targetScaleX, targetScaleY, targetScaleZ), lerpFactor);
     }
     if (uniforms) uniforms.uTime.value = state.clock.getElapsedTime();
   });
@@ -196,63 +187,83 @@ export default function HairMesh({ styleId, color, trackingRef, shape = 'ovalado
   }, [uniforms]);
 
   const renderStyle = () => {
-    // PRO GEOMETRY: Anatomical scalp-hugging shapes
+    // SCULPTED GEOMETRY: Compound primitives to avoid "dome" effect
     switch (styleId) {
       case 'fade':
+        return (
+          <group>
+            {/* Top Volume - Anatomical Oval */}
+            <mesh position={[0, 0.48, 0.08]} scale={[0.88, 0.6, 1.25]}>
+                <sphereGeometry args={[0.5, 64, 32]} />
+                <primitive object={shaderMaterial} attach="material" />
+            </mesh>
+            {/* Tapered Sides - Cylinder-based for flat transition */}
+            <mesh position={[0, 0.32, -0.05]} rotation={[0, 0, 0]} scale={[1.15, 0.45, 1.15]}>
+                <cylinderGeometry args={[0.48, 0.52, 1, 64, 1, true]} />
+                <primitive object={shaderMaterial} attach="material" />
+            </mesh>
+            {/* Scalp Integration (Feathered base) */}
+            <mesh position={[0, 0.28, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1.1, 1.15, 0.1]}>
+                <torusGeometry args={[0.5, 0.05, 16, 100]} />
+                <primitive object={shaderMaterial} attach="material" />
+            </mesh>
+          </group>
+        );
       case 'buzz':
         return (
-          <mesh position={[0, 0.45, 0.0]} scale={[1.0, 0.6, 1.1]}>
-            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.7]} />
+          <mesh position={[0, 0.4, 0.0]} scale={[1.05, 0.58, 1.15]}>
+            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.8]} />
             <primitive object={shaderMaterial} attach="material" />
           </mesh>
         );
       case 'undercut':
         return (
           <group>
-            {/* Top Volume */}
-            <mesh position={[0, 0.6, 0.15]} scale={[0.85, 0.5, 1.2]}>
-               <sphereGeometry args={[0.5, 64, 32]} />
-               <primitive object={shaderMaterial} attach="material" />
+            {/* Top Side-Swept Volume */}
+            <mesh position={[0.1, 0.62, 0.18]} rotation={[0, 0, -0.2]} scale={[0.9, 0.4, 1.3]}>
+                <sphereGeometry args={[0.5, 64, 32]} />
+                <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            {/* Sides */}
-            <mesh position={[0, 0.35, 0]} scale={[1.1, 0.5, 1.1]}>
-               <sphereGeometry args={[0.55, 64, 16, 0, Math.PI * 2, 0, Math.PI / 2.2]} />
-               <primitive object={shaderMaterial} attach="material" />
+            {/* Tight Sides */}
+            <mesh position={[0, 0.35, 0]} scale={[1.02, 0.48, 1.12]}>
+                <cylinderGeometry args={[0.5, 0.55, 1, 64, 1, true]} />
+                <primitive object={shaderMaterial} attach="material" />
             </mesh>
           </group>
         );
       case 'pompadour':
         return (
           <group>
-            {/* Front Quiff */}
-            <mesh position={[0, 0.65, 0.25]} scale={[0.8, 0.8, 1.3]}>
-               <sphereGeometry args={[0.55, 64, 64]} />
-               <primitive object={shaderMaterial} attach="material" />
+            {/* Classic Pomp Quiff */}
+            <mesh position={[0, 0.75, 0.35]} rotation={[-0.2, 0, 0]} scale={[0.85, 0.8, 1.45]}>
+                <sphereGeometry args={[0.5, 64, 64]} />
+                <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            {/* Base */}
-            <mesh position={[0, 0.4, 0]} scale={[1.05, 0.55, 1.1]}>
-               <sphereGeometry args={[0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2.4]} />
-               <primitive object={shaderMaterial} attach="material" />
+            {/* Back & Sides tapered */}
+            <mesh position={[0, 0.4, 0]} scale={[1.08, 0.5, 1.15]}>
+                <sphereGeometry args={[0.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2.5]} />
+                <primitive object={shaderMaterial} attach="material" />
             </mesh>
           </group>
         );
       case 'textured':
         return (
-          <mesh position={[0, 0.52, 0.1]} scale={[1.05, 0.68, 1.22]}>
-            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.7]} />
+          <mesh position={[0, 0.48, 0.12]} scale={[1.02, 0.65, 1.3]}>
+            <sphereGeometry args={[0.55, 64, 32, 0, Math.PI * 2, 0, Math.PI / 1.8]} />
             <primitive object={shaderMaterial} attach="material" />
           </mesh>
         );
       case 'long':
         return (
           <group>
-            <mesh position={[0, 0.48, 0]} scale={[1.1, 0.55, 1.15]}>
-               <sphereGeometry args={[0.5, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
-               <primitive object={shaderMaterial} attach="material" />
+            <mesh position={[0, 0.44, 0]} scale={[1.08, 0.55, 1.2]}>
+                <sphereGeometry args={[0.5, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                <primitive object={shaderMaterial} attach="material" />
             </mesh>
-            <mesh position={[0, 0.15, -0.32]} rotation={[1.15, 0, 0]} scale={[1.15, 1.35, 1.45]}>
-               <coneGeometry args={[0.5, 1.8, 64]} />
-               <primitive object={shaderMaterial} attach="material" />
+            {/* Falling hair strands */}
+            <mesh position={[0, -0.1, -0.38]} rotation={[1.2, 0, 0]} scale={[1.2, 1.5, 1.4]}>
+                <coneGeometry args={[0.5, 1.8, 64]} />
+                <primitive object={shaderMaterial} attach="material" />
             </mesh>
           </group>
         );
