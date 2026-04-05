@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useRef, useEffect } from 'react';
+import * as THREE from 'three';
 
 interface HairOverlay2DProps {
   styleId: string;
   trackingRef: React.RefObject<{
     landmarks: any[],
+    matrix: THREE.Matrix4 | null,
     viewport: { vWidth: number, vHeight: number }
   }>;
 }
@@ -20,75 +22,95 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   
-  // Smoothing state
+  // EMA Smoothing State
   const stateRef = useRef({
-    x: 0, y: 0, width: 0, angle: 0,
+    x: 0, y: 0, width: 0, 
+    rotX: 0, rotY: 0, rotZ: 0, // Using 3D Euler angles
     initialized: false
   });
 
   useEffect(() => {
-    const smoothing = 0.25; // EMA factor: slightly lower = smoother follow
+    const smoothing = 0.35; 
 
     const updatePosition = () => {
-      const { landmarks, viewport } = trackingRef.current;
-      if (landmarks && landmarks.length > 0 && containerRef.current && imgRef.current) {
+      const { landmarks, matrix } = trackingRef.current;
+      if (landmarks && landmarks.length > 0 && matrix && containerRef.current && imgRef.current) {
         
-        // 1. LANDMARKS
-        // 10: Topmost point of head (approx)
-        // 151: Forehead Center (Hairline anchor)
-        // 234: Left Temple
-        // 454: Right Temple
+        // 1. POSITION (Landmark 151 = Forehead Center / Hairline)
         const hairline = landmarks[151] || landmarks[10]; 
         const leftTemple = landmarks[234];
         const rightTemple = landmarks[454];
 
-        // 2. COORDINATES (Percentage of viewport)
         const targetX = hairline.x * 100;
         const targetY = hairline.y * 100;
 
-        // 3. DYNAMIC SCALING
-        // Distance between temples handles depth (Z-distance) and face width
+        // 2. DYNAMIC SCALING (Distance between temples)
         const dx = rightTemple.x - leftTemple.x;
         const dy = rightTemple.y - leftTemple.y;
         const templeDist = Math.sqrt(dx * dx + dy * dy);
+        const targetWidth = templeDist * 190; 
+
+        // 3. 3D ROTATION (Extract from MediaPipe Transformation Matrix)
+        const pos = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const scl = new THREE.Vector3();
+        matrix.decompose(pos, quat, scl);
         
-        // The hair asset needs to be slightly wider than the temples.
-        // Adjust this multiplier based on the crop of the generated assets.
-        const targetWidth = templeDist * 220; 
+        // Convert to Euler angles (YXZ order matches typical head rotations)
+        const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
+        
+        // Extract raw radians
+        let targetRotX = euler.x; 
+        let targetRotY = euler.y; 
+        let targetRotZ = euler.z;
 
-        // 4. ROTATION
-        // Roll of the head
-        const targetAngle = Math.atan2(dy, dx) * (180 / Math.PI);
-
-        // 5. MOTION SMOOTHING (EMA)
+        // 4. EMA SMOOTHING
         if (!stateRef.current.initialized) {
-          stateRef.current = { x: targetX, y: targetY, width: targetWidth, angle: targetAngle, initialized: true };
+          stateRef.current = { 
+            x: targetX, y: targetY, width: targetWidth, 
+            rotX: targetRotX, rotY: targetRotY, rotZ: targetRotZ,
+            initialized: true 
+          };
         } else {
           stateRef.current.x += (targetX - stateRef.current.x) * smoothing;
           stateRef.current.y += (targetY - stateRef.current.y) * smoothing;
           stateRef.current.width += (targetWidth - stateRef.current.width) * smoothing;
-          stateRef.current.angle += (targetAngle - stateRef.current.angle) * smoothing;
+          
+          stateRef.current.rotX += (targetRotX - stateRef.current.rotX) * smoothing;
+          stateRef.current.rotY += (targetRotY - stateRef.current.rotY) * smoothing;
+          stateRef.current.rotZ += (targetRotZ - stateRef.current.rotZ) * smoothing;
         }
 
-        // 6. OFFSET ADJUSTMENT
-        // Hair assets usually have the hair centered. 
-        // We want the BOTTOM of the hair (which in the image might be around 80% down) to touch the hairline.
-        // By translating -85% on Y, the bottom-center of the image sits exactly on landmark 151.
-        const offsetY = -80; 
+        const sr = stateRef.current;
 
-        // 7. PROFESSIONAL AR STYLES
-        imgRef.current.style.width = `${stateRef.current.width}%`;
-        imgRef.current.style.left = `${stateRef.current.x}%`;
-        imgRef.current.style.top = `${stateRef.current.y}%`;
+        // 5. APPLY 2.5D MODELING EFFECTS
+        imgRef.current.style.width = `${sr.width}%`;
+        imgRef.current.style.left = `${sr.x}%`;
+        imgRef.current.style.top = `${sr.y}%`;
         
-        // Transformation: Center X horizontally, shift Y up so hair sits ON TOP of hairline, rotate by angle
-        imgRef.current.style.transform = `translate(-50%, ${offsetY}%) rotate(${stateRef.current.angle}deg)`;
+        // CSS 3D Transform
+        // We use perspective to give it depth when rotating.
+        // translate(-50%, -70%) sets the anchor point roughly at the forehead.
+        // rotY needs to be flipped for mirroring, same with rotZ, depending on MediaPipe coordinate system
+        const degX = sr.rotX * (180 / Math.PI);
+        const degY = -sr.rotY * (180 / Math.PI); 
+        const degZ = -sr.rotZ * (180 / Math.PI);
+
+        imgRef.current.style.transform = `
+          translate(-50%, -75%) 
+          perspective(600px) 
+          rotateY(${degY}deg) 
+          rotateX(${degX}deg) 
+          rotateZ(${degZ}deg)
+        `;
         
-        // Visual Integration:
-        imgRef.current.style.mixBlendMode = 'multiply'; // Makes white bg perfectly transparent, blends hair to skin
-        imgRef.current.style.opacity = '0.90'; // Less artificial, blends perfectly
-        imgRef.current.style.maskImage = 'radial-gradient(ellipse at center, black 65%, transparent 100%)';
-        imgRef.current.style.webkitMaskImage = 'radial-gradient(ellipse at center, black 65%, transparent 100%)';
+        // 6. INTEGRATION / HEAD MASKING
+        // Removing mix-blend-mode because assets are truly transparent now
+        imgRef.current.style.mixBlendMode = 'normal'; 
+        
+        // Soft gradient mask to hide any hair that invades the face below the hairline
+        imgRef.current.style.webkitMaskImage = 'linear-gradient(to top, transparent 10%, black 30%)';
+        imgRef.current.style.maskImage = 'linear-gradient(to top, transparent 10%, black 30%)';
       }
       requestAnimationFrame(updatePosition);
     };
