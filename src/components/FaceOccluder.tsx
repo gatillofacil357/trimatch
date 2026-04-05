@@ -115,22 +115,22 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
 
     void main() {
       // The mask is pulled up around y = 0.0 to y = 0.5 roughly
-      // We want opacity to be 1.0 at the top, and smoothstep to 0.0 at the bottom bounds of the mesh
-      
-      // Calculate alpha based on vertical position
-      // Using vUv.y: 0 is bottom (forehead), 1 is top (crown)
-      float alpha = smoothstep(0.1, 0.4, vUv.y); 
+      // Force strongly visible alpha to guarantee occlusion over video
+      float alpha = smoothstep(-0.2, 0.4, vUv.y); 
 
-      // We can also fade the edges horizontally to prevent jagged cuts on the side
+      // Fade the edges horizontally
       float edgeX = 1.0 - abs(vUv.x * 2.0 - 1.0);
-      alpha *= smoothstep(0.0, 0.2, edgeX);
+      alpha *= smoothstep(0.0, 0.4, edgeX);
+
+      // Enforce limits
+      alpha = clamp(alpha, 0.0, 1.0);
 
       gl_FragColor = vec4(uColor, alpha);
     }
   `;
 
   return (
-    <mesh ref={meshRef} geometry={geometry}>
+    <mesh ref={meshRef} geometry={geometry} renderOrder={1}>
       <shaderMaterial 
         ref={materialRef}
         vertexShader={vertexShader}
@@ -138,7 +138,7 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
         uniforms={{ uColor: { value: new THREE.Vector3(0.8, 0.6, 0.5) } }}
         transparent={true}
         side={THREE.DoubleSide} 
-        depthWrite={false}
+        depthWrite={true}
       />
     </mesh>
   );
