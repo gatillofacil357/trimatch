@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 
 interface HairOverlay2DProps {
@@ -12,31 +12,106 @@ interface HairOverlay2DProps {
   }>;
 }
 
-const HAIR_ASSETS: Record<string, string> = {
-  'fade': '/assets/hair/fade.png',
-  'buzz': '/assets/hair/buzz.png',
-  'undercut': '/assets/hair/undercut.png'
+// 3. ESTRUCTURA DE DATOS
+const ASSETS: Record<string, { front: string, side?: string, back?: string }> = {
+  'fade': {
+    front: '/assets/hair/fade.png',
+  },
+  'buzz': {
+    front: '/assets/hair/buzz.png',
+  },
+  'undercut': {
+    front: '/assets/hair/undercut.png',
+  }
 };
 
 export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   
+  const [assetStatus, setAssetStatus] = useState<'LOADING' | 'VALID' | 'INVALID'>('LOADING');
+
   // EMA Smoothing State
   const stateRef = useRef({
     x: 0, y: 0, width: 0, 
-    rotX: 0, rotY: 0, rotZ: 0, // Using 3D Euler angles
+    rotX: 0, rotY: 0, rotZ: 0,
     initialized: false
   });
 
+  // 1 & 2. FILTRADO Y VALIDACIÓN DE TRANSPARENCIA
   useEffect(() => {
+    setAssetStatus('LOADING');
+    
+    // SOLO MODO AR: usar exclusivamente assets.front
+    const src = ASSETS[styleId]?.front;
+    if (!src) {
+      setAssetStatus('INVALID');
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    
+    img.onload = () => {
+      // Rechazar imágenes con múltiples vistas (aspect ratio muy ancho)
+      const aspect = img.naturalWidth / img.naturalHeight;
+      if (aspect > 1.35) {
+        console.warn(`[AR Engine] Asset ${src} bloqueado: parece contener múltiples vistas (ratio ${aspect}).`);
+        setAssetStatus('INVALID');
+        return;
+      }
+
+      // Validar canal alpha real (Canvas API)
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        // Muestrear esquinas buscando fondos sólidos / blancos
+        const coords = [
+          [0, 0], 
+          [img.naturalWidth - 1, 0], 
+          [0, Math.floor(img.naturalHeight / 2)], 
+          [img.naturalWidth - 1, Math.floor(img.naturalHeight / 2)] 
+        ];
+        
+        let hasSolidBg = false;
+        for (let [x, y] of coords) {
+          const pixel = ctx.getImageData(x, y, 1, 1).data;
+          // Si el pixel es completamente opaco (Alpha = 255)
+          if (pixel[3] === 255) {
+            hasSolidBg = true;
+            break;
+          }
+        }
+        
+        if (hasSolidBg) {
+          console.warn(`[AR Engine] Asset ${src} bloqueado: detectado fondo sólido (no tiene canal alpha transparente).`);
+          setAssetStatus('INVALID');
+          return;
+        }
+      }
+
+      setAssetStatus('VALID');
+      if (imgRef.current) imgRef.current.src = src;
+    };
+    
+    img.onerror = () => setAssetStatus('INVALID');
+    img.src = src;
+    
+  }, [styleId]);
+
+  useEffect(() => {
+    // 4. BLOQUEO DE ERRORES: Si no es válido, no hacer tracking
+    if (assetStatus !== 'VALID') return;
+
     const smoothing = 0.35; 
 
     const updatePosition = () => {
       const { landmarks, matrix } = trackingRef.current;
       if (landmarks && landmarks.length > 0 && matrix && containerRef.current && imgRef.current) {
-        
-        // 1. POSITION (Landmark 151 = Forehead Center / Hairline)
+        // POSITION
         const hairline = landmarks[151] || landmarks[10]; 
         const leftTemple = landmarks[234];
         const rightTemple = landmarks[454];
@@ -44,27 +119,23 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
         const targetX = hairline.x * 100;
         const targetY = hairline.y * 100;
 
-        // 2. DYNAMIC SCALING (Distance between temples)
+        // SCALING
         const dx = rightTemple.x - leftTemple.x;
         const dy = rightTemple.y - leftTemple.y;
         const templeDist = Math.sqrt(dx * dx + dy * dy);
-        const targetWidth = templeDist * 190; 
+        const targetWidth = templeDist * 165; // Ajuste manual para compensar recorte frontal
 
-        // 3. 3D ROTATION (Extract from MediaPipe Transformation Matrix)
+        // ROTATION
         const pos = new THREE.Vector3();
         const quat = new THREE.Quaternion();
         const scl = new THREE.Vector3();
         matrix.decompose(pos, quat, scl);
-        
-        // Convert to Euler angles (YXZ order matches typical head rotations)
         const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
-        
-        // Extract raw radians
         let targetRotX = euler.x; 
         let targetRotY = euler.y; 
         let targetRotZ = euler.z;
 
-        // 4. EMA SMOOTHING
+        // EMA SMOOTHING
         if (!stateRef.current.initialized) {
           stateRef.current = { 
             x: targetX, y: targetY, width: targetWidth, 
@@ -75,7 +146,6 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
           stateRef.current.x += (targetX - stateRef.current.x) * smoothing;
           stateRef.current.y += (targetY - stateRef.current.y) * smoothing;
           stateRef.current.width += (targetWidth - stateRef.current.width) * smoothing;
-          
           stateRef.current.rotX += (targetRotX - stateRef.current.rotX) * smoothing;
           stateRef.current.rotY += (targetRotY - stateRef.current.rotY) * smoothing;
           stateRef.current.rotZ += (targetRotZ - stateRef.current.rotZ) * smoothing;
@@ -83,69 +153,56 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
 
         const sr = stateRef.current;
 
-        // 5. APPLY 2.5D MODELING EFFECTS
+        // APPLICATION
         imgRef.current.style.width = `${sr.width}%`;
         imgRef.current.style.left = `${sr.x}%`;
         imgRef.current.style.top = `${sr.y}%`;
         
-        // CSS 3D Transform
-        // We use perspective to give it depth when rotating.
-        // translate(-50%, -70%) sets the anchor point roughly at the forehead.
-        // rotY needs to be flipped for mirroring, same with rotZ, depending on MediaPipe coordinate system
         const degX = sr.rotX * (180 / Math.PI);
         const degY = -sr.rotY * (180 / Math.PI); 
         const degZ = -sr.rotZ * (180 / Math.PI);
 
-        imgRef.current.style.transform = `
-          translate(-50%, -75%) 
-          perspective(600px) 
-          rotateY(${degY}deg) 
-          rotateX(${degX}deg) 
-          rotateZ(${degZ}deg)
-        `;
-        
-        // 6. INTEGRATION / HEAD MASKING
-        // Removing mix-blend-mode because assets are truly transparent now
-        imgRef.current.style.mixBlendMode = 'normal'; 
-        
-        // Soft gradient mask to hide any hair that invades the face below the hairline
-        imgRef.current.style.webkitMaskImage = 'linear-gradient(to top, transparent 10%, black 30%)';
-        imgRef.current.style.maskImage = 'linear-gradient(to top, transparent 10%, black 30%)';
+        imgRef.current.style.transform = `translate(-50%, -75%) perspective(600px) rotateY(${degY}deg) rotateX(${degX}deg) rotateZ(${degZ}deg)`;
       }
       requestAnimationFrame(updatePosition);
     };
 
     const animId = requestAnimationFrame(updatePosition);
     return () => cancelAnimationFrame(animId);
-  }, [trackingRef]);
+  }, [trackingRef, assetStatus]);
+
+  // Si no hay imagen, o está cargando, esperar.
+  if (assetStatus === 'LOADING') return null;
 
   return (
     <div 
       ref={containerRef} 
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: 50,
-        overflow: 'hidden'
+        top: 0, left: 0, width: '100%', height: '100%',
+        pointerEvents: 'none', zIndex: 50, overflow: 'hidden'
       }}
     >
       <img 
         ref={imgRef}
-        src={HAIR_ASSETS[styleId] || HAIR_ASSETS['fade']}
-        alt="Hair Overlay"
+        alt="AR Hair Frontend"
         style={{
-          position: 'absolute',
-          transition: 'none',
-          display: 'block',
-          // Mirroring: Since container is scaleX(-1), 
-          // the image must also be scaleX(-1) or handled accordingly.
-          // In this case, we let it inherid the mirror.
+          position: 'absolute', transition: 'none', display: 'block',
+          mixBlendMode: 'normal',
+          webkitMaskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
+          maskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
+          // 5. DEBUG VISUAL
+          border: assetStatus === 'VALID' ? '3px solid #00ff00' : '3px solid #ff0000',
+          boxSizing: 'border-box'
         }}
+        // Ocultar si es inválida
+        hidden={assetStatus === 'INVALID'}
       />
+      {assetStatus === 'INVALID' && (
+        <div style={{ position: 'absolute', top: 50, left: '50%', transform: 'translateX(-50%)', color: 'white', background: '#ff0000', padding: '10px', borderRadius: '8px', zIndex: 100, textAlign: 'center', fontWeight: 'bold' }}>
+          BLOQUEO AR ACTIVO<br/>El asset contiene fondo sólido o múltiples vistas.
+        </div>
+      )}
     </div>
   );
 }
