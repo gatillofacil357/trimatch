@@ -71,69 +71,71 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
 
-        // 1. Draw the Video Feed
+        // 1. Draw the Video Feed (Background + Person)
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(video, 0, 0, w, h);
 
-        // 2. Extract Person from Background via MediaPipe Selfie Segmentation
-        const seg = segmentationRef.current;
-        if (seg && seg.mask && seg.width > 0 && seg.height > 0) {
-            // Convert Uint8Array [0, 1] to ImageData alpha mask
-            const imgData = new ImageData(seg.width, seg.height);
-            for (let i = 0; i < seg.mask.length; i++) {
-                imgData.data[i * 4 + 0] = 0;
-                imgData.data[i * 4 + 1] = 0;
-                imgData.data[i * 4 + 2] = 0;
-                imgData.data[i * 4 + 3] = seg.mask[i] > 0.5 ? 255 : 0; 
-            }
-            
-            // Draw mask to offscreen canvas
-            const segCanvas = document.createElement('canvas');
-            segCanvas.width = seg.width;
-            segCanvas.height = seg.height;
-            const sCtx = segCanvas.getContext('2d');
-            if (sCtx) {
-                sCtx.putImageData(imgData, 0, 0);
-                
-                // Mask the main canvas
-                ctx.globalCompositeOperation = 'destination-in';
-                ctx.drawImage(segCanvas, 0, 0, w, h);
-            }
-        }
-
-        // We now have the ISOLATED PERSON with transparent background on screen.
         if (landmarks && landmarks.length > 0) {
           const leftTemple = landmarks[234];
           const rightTemple = landmarks[454];
           const topForehead = landmarks[10];
 
-          // 3. REMOVE Original Hair (Erase pixels above hairline)
-          const hairlineCurve = [
-            234, 127, 162, 21, 54, 103, 67, 109, 10, 338, 297, 332, 284, 251, 389, 356, 454 
-          ];
+          // We build the physical isolation mask
+          const seg = segmentationRef.current;
+          if (seg && seg.mask && seg.width > 0 && seg.height > 0) {
+              const segCanvas = document.createElement('canvas');
+              segCanvas.width = seg.width;
+              segCanvas.height = seg.height;
+              const sCtx = segCanvas.getContext('2d');
+              
+              if (sCtx) {
+                  // A. Create ImageData where the person is solid white, background is transparent
+                  const imgData = new ImageData(seg.width, seg.height);
+                  for (let i = 0; i < seg.mask.length; i++) {
+                      // mask > 0 implies Person class
+                      const isPerson = seg.mask[i] > 0;
+                      imgData.data[i * 4 + 0] = 255;
+                      imgData.data[i * 4 + 1] = 255;
+                      imgData.data[i * 4 + 2] = 255;
+                      imgData.data[i * 4 + 3] = isPerson ? 255 : 0; 
+                  }
+                  sCtx.putImageData(imgData, 0, 0);
 
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.beginPath();
-          ctx.moveTo(w, 0); // Top Left (mirrored)
-          ctx.lineTo(w, leftTemple.y * h); 
-          ctx.lineTo(leftTemple.x * w, leftTemple.y * h); 
+                  // B. We ONLY want to erase the hair (top of head). 
+                  // So we intersect the Selfie Mask with an Upper-Head Polygon!
+                  // We draw a bounding box that ONLY covers the top of the monitor down to the forehead.
+                  sCtx.globalCompositeOperation = 'destination-in';
+                  
+                  sCtx.save();
+                  sCtx.translate(seg.width, 0);
+                  sCtx.scale(-1, 1);
+                  
+                  sCtx.beginPath();
+                  sCtx.moveTo(seg.width, 0); // Physical Left Top
+                  sCtx.lineTo(seg.width, leftTemple.y * seg.height);
+                  sCtx.lineTo(leftTemple.x * seg.width, leftTemple.y * seg.height);
+                  
+                  // Smooth Bezier Curve across the forehead
+                  const midY = (leftTemple.y + rightTemple.y) / 2;
+                  const cpY = 2 * topForehead.y - midY;
+                  sCtx.quadraticCurveTo(topForehead.x * seg.width, cpY * seg.height, rightTemple.x * seg.width, rightTemple.y * seg.height);
+                  
+                  sCtx.lineTo(0, rightTemple.y * seg.height); // To Physical Right
+                  sCtx.lineTo(0, 0); // To Top Right
+                  sCtx.closePath();
+                  sCtx.fill();
+                  sCtx.restore();
 
-          for (let idx of hairlineCurve) {
-              const pt = landmarks[idx];
-              if (pt) ctx.lineTo(pt.x * w, pt.y * h);
+                  // segCanvas now EXACTLY equals the user's physical hair silhouette!
+                  // C. Erase the hair silhouette from the LIVE VIDEO
+                  ctx.globalCompositeOperation = 'destination-out';
+                  ctx.filter = 'blur(4px)'; // Soft blend the erased hole
+                  ctx.drawImage(segCanvas, 0, 0, w, h);
+                  ctx.filter = 'none';
+              }
           }
 
-          ctx.lineTo(rightTemple.x * w, rightTemple.y * h);
-          ctx.lineTo(0, rightTemple.y * h); 
-          ctx.lineTo(0, 0); 
-          ctx.closePath();
-          
-          // Apply blur at edges for blending as specifically requested
-          ctx.filter = 'blur(5px)';
-          ctx.fill();
-          ctx.filter = 'none';
-
-          // 4. DRAW New Hairstyle
+          // 3. DRAW New Hairstyle PNG over the erased hole
           ctx.globalCompositeOperation = 'source-over';
           
           const anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
@@ -143,7 +145,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const dy = (rightTemple.y - leftTemple.y) * h;
           const headWidthPx = Math.sqrt(dx*dx + dy*dy);
           
-          // Dynamic scaling
+          // Scale it to fully cover the erased hair hole
           const targetW = headWidthPx * 1.5;
 
           let targetRotZ = 0;
@@ -181,18 +183,18 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               const drawW = sr.width;
               const drawH = sr.width * aspect;
               
-              // Anchor to forehead (do not center). Image mostly sits upwards.
+              // Anchor firmly above the forehead curve
               const yOffset = -drawH * 0.91; 
 
               ctx.translate(sr.x, sr.y);
               ctx.rotate(-sr.rotZ); 
               
-              // Perspective skew
+              // Apply Yaw squish perspective
               const yawSquish = Math.cos(sr.rotY);
               ctx.scale(yawSquish, 1.0);
               
-              // Blur at edges slightly as requested (requires Canvas 2D filters, or we just rely on scaling)
-              ctx.filter = `drop-shadow(0px 10px 10px rgba(0,0,0,0.5))`;
+              // Subtle physical shadowing to ground the hair to the scalp
+              ctx.filter = `drop-shadow(0px 8px 6px rgba(0,0,0,0.6)) grayscale(0.9)`;
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
               ctx.filter = 'none';
           }
