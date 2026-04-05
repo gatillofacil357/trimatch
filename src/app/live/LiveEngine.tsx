@@ -154,14 +154,8 @@ export default function LiveEngine() {
 
         {mpInitialized && (
           <>
-            {/* 1. LAYER: 2D OVERLAY (Topmost Photo-Realism) */}
-            <HairOverlay2D 
-                styleId={activeStyle} 
-                trackingRef={trackingRef} 
-            />
-
-            {/* 2. LAYER: Background & Occlusion (3D Engine) */}
-            <div className={styles.canvasContainer}>
+            {/* 1. LAYER: Background & Occlusion (3D Engine) */}
+            <div className={styles.canvasContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
               <Canvas 
                  camera={{ position: [0, 0, 5], fov: 50 }} 
                  dpr={[1, 2]}
@@ -176,6 +170,14 @@ export default function LiveEngine() {
                   {/* Face Occlusion */}
                   <FaceOccluder webcamRef={webcamRef} trackingRef={trackingRef} />
               </Canvas>
+            </div>
+
+            {/* 2. LAYER: 2D OVERLAY (Topmost Photo-Realism) */}
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 20, pointerEvents: 'none' }}>
+              <HairOverlay2D 
+                  styleId={activeStyle} 
+                  trackingRef={trackingRef} 
+              />
             </div>
           </>
         )}
