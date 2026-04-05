@@ -23,9 +23,10 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
   // Buffer Geometry to hold the face mesh
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    // Pre-allocate enough for 478 landmarks (Face Mesh standard)
     const positions = new Float32Array(478 * 3);
+    const uvs = new Float32Array(478 * 2);
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.setIndex(TRIANGULATION);
     return geo;
   }, []);
@@ -43,6 +44,7 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
     const { landmarks, viewport } = trackingRef.current;
     if (meshRef.current && landmarks.length > 0 && viewport.vWidth > 0) {
       const positionAttribute = meshRef.current.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const uvAttribute = meshRef.current.geometry.getAttribute('uv') as THREE.BufferAttribute;
       
       // We will pull the topmost landmarks upwards to cover the hair
       // Forehead landmarks: 10, 151, 9, 8
@@ -61,8 +63,10 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
         const z = -lp.z * 5.0; 
         
         positionAttribute.setXYZ(i, x, y, z);
+        uvAttribute.setXY(i, lp.x, lp.y);
       }
       positionAttribute.needsUpdate = true;
+      uvAttribute.needsUpdate = true;
       meshRef.current.geometry.computeVertexNormals();
 
       // Sample Skin Color from forehead (landmark 151 is top of forehead)
@@ -114,13 +118,13 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
     varying float vY;
 
     void main() {
-      // The mask is pulled up around y = 0.0 to y = 0.5 roughly
-      // Force strongly visible alpha to guarantee occlusion over video
-      float alpha = smoothstep(-0.2, 0.4, vUv.y); 
+      // 0 is top of the face (forehead), 1 is the bottom (chin).
+      // We want to solidly hide the hair at the top (alpha=1.0) and fade completely out by the eyes/nose (y=0.4).
+      float alpha = 1.0 - smoothstep(0.1, 0.4, vUv.y); 
 
-      // Fade the edges horizontally
+      // Fade the side edges slightly so it blends into the skin
       float edgeX = 1.0 - abs(vUv.x * 2.0 - 1.0);
-      alpha *= smoothstep(0.0, 0.4, edgeX);
+      alpha *= smoothstep(0.0, 0.15, edgeX);
 
       // Enforce limits
       alpha = clamp(alpha, 0.0, 1.0);
