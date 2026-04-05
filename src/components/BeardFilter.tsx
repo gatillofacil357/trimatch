@@ -67,43 +67,71 @@ export default function BeardFilter({ webcamRef, trackingRef }: BeardFilterProps
     }
   `;
 
-  // The fragment shader filters to just the lower jaw / chin area
+  // The fragment shader filtering to the lower jaw and adding hair texture
   const fragmentShader = `
     uniform vec3 uColor;
     varying vec2 vUv;
 
+    // Pseudo-random noise function for hair strands
+    float rand(vec2 co) {
+        return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    }
+    
+    // Value noise
+    float noise(vec2 st) {
+        vec2 i = floor(st);
+        vec2 f = fract(st);
+        float a = rand(i);
+        float b = rand(i + vec2(1.0, 0.0));
+        float c = rand(i + vec2(0.0, 1.0));
+        float d = rand(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    }
+
     void main() {
-      // vUv.y ranges from roughly 0.0 (top of forehead) to 1.0 (bottom of chin)
-      // We want the beard on the lower half (y > 0.6)
+      // Create high-frequency directional noise to look like short hairs
+      // Scale X massively more than Y to create vertical/diagonal strands
+      vec2 hairUv = vUv * vec2(150.0, 40.0);
       
-      // Calculate alpha based on vertical position (fade from cheeks to dark chin)
-      // At y=0.6 (cheeks), alpha is 0.0. At y=0.85 (jaw/chin), alpha is 0.8
-      float verticalFade = smoothstep(0.65, 0.9, vUv.y); 
+      // Arc the strands so they curve around the chin somewhat
+      hairUv.x += sin(vUv.y * 3.14) * 5.0; 
       
-      // Fade the edges horizontally so it doesn't bleed out of the face sides
-      // Center is x=0.5. Edges are x=0.0 and x=1.0. 
-      // We distance from center -> diff from 0.5. 0.0 at edges, 1.0 at center.
+      float hairTex = noise(hairUv);
+      // Sharpen the noise to make them look like distinct thin hairs instead of clouds
+      hairTex = smoothstep(0.4, 0.8, hairTex);
+
+      // --- MASK CALCULATION ---
+      // Vertical Fade: Fade from cheeks (y=0.6) to chin (y=0.9)
+      float verticalFade = smoothstep(0.65, 0.95, vUv.y); 
+      
+      // Horizontal Fade: Soft edges near ears
       float edgeX = 1.0 - abs(vUv.x - 0.5) * 2.0; 
-      // Soften horizontal edges
       float horizontalFade = smoothstep(0.1, 0.5, edgeX);
 
-      // Hole for the mouth: Landmarks around mouth roughly y=0.7 to 0.8, x=0.4 to 0.6
-      // Create a soft inverted ellipse for the mouth
-      float dx = (vUv.x - 0.5) * 2.0; // -1 to 1
-      float dy = (vUv.y - 0.75) * 2.5; // Scale Y to make an ellipse
+      // Mouth Cutout
+      float dx = (vUv.x - 0.5) * 2.0; 
+      float dy = (vUv.y - 0.75) * 2.5; 
       float mouthDist = dx*dx + dy*dy;
-      float mouthHole = smoothstep(0.04, 0.15, mouthDist); // Alpha is 0 near center, 1 outside
+      float mouthHole = smoothstep(0.06, 0.18, mouthDist); 
 
-      // Combine Alpha
-      float alpha = verticalFade * horizontalFade * mouthHole;
+      // Combine spatial mask
+      float maskAlpha = verticalFade * horizontalFade * mouthHole;
       
-      // Boost the maximum opacity a bit for the darkest part of the beard
-      alpha *= 0.85;
+      // Modulate the mask heavily by the hair texture so we only see the "strands"
+      // not a solid block. Adding a little base alpha so it's not totally sparse.
+      float finalAlpha = maskAlpha * (hairTex * 0.9 + 0.1);
+      
+      // Boost density where the mask is strongest (chin)
+      finalAlpha *= 1.2;
 
-      // Ensure NO rendering at all if alpha is practically zero to save depth buffer
-      if(alpha < 0.01) discard;
+      // Ensure NO rendering at all if alpha is practically zero
+      if(finalAlpha < 0.01) discard;
 
-      gl_FragColor = vec4(uColor, alpha);    
+      // Darken the color in the "strand" centers for depth
+      vec3 finalColor = uColor * (0.5 + hairTex * 0.5);
+
+      gl_FragColor = vec4(finalColor, finalAlpha);    
     }
   `;
 
