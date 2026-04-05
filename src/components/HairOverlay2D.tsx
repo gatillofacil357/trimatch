@@ -58,7 +58,8 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
         const dx = rightTemple.x - leftTemple.x;
         const dy = rightTemple.y - leftTemple.y;
         const templeDist = Math.sqrt(dx * dx + dy * dy);
-        const targetWidth = templeDist * 165; // Ajuste manual para compensar recorte frontal
+        // Reduce scaling so the hair fits tighter to the skull
+        const targetWidth = templeDist * 150; 
 
         // ROTATION
         const pos = new THREE.Vector3();
@@ -97,7 +98,8 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
         const degY = -sr.rotY * (180 / Math.PI); 
         const degZ = -sr.rotZ * (180 / Math.PI);
 
-        imgRef.current.style.transform = `translate(-50%, -75%) perspective(600px) rotateY(${degY}deg) rotateX(${degX}deg) rotateZ(${degZ}deg)`;
+        // Lower the Y translation from -75% to -50% to pull the hair down over the forehead
+        imgRef.current.style.transform = `translate(-50%, -50%) perspective(600px) rotateY(${degY}deg) rotateX(${degX}deg) rotateZ(${degZ}deg)`;
       }
       requestAnimationFrame(updatePosition);
     };
