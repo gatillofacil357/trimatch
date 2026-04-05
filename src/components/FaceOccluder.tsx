@@ -17,7 +17,7 @@ interface FaceOccluderProps {
 
 export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Buffer Geometry to hold the face mesh
@@ -82,8 +82,12 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
                     const pixel = ctx.getImageData(5, 5, 1, 1).data;
                     
                     // Smooth color transition
-                    const targetColor = new THREE.Color(`rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`);
-                    materialRef.current.color.lerp(targetColor, 0.1);
+                    const r = pixel[0] / 255;
+                    const g = pixel[1] / 255;
+                    const b = pixel[2] / 255;
+                    
+                    const uniforms = materialRef.current.uniforms;
+                    uniforms.uColor.value.lerp(new THREE.Vector3(r, g, b), 0.1);
                 }
             }
         }
@@ -91,16 +95,50 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
     }
   });
 
+  // GLSL Shader for smooth blending edge
+  const vertexShader = `
+    varying vec2 vUv;
+    varying float vY;
+    void main() {
+      vUv = uv;
+      vY = position.y; // World/local Y position to calculate vertical fade
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+
+  // The fragment shader creates a smooth gradient that is opaque at the top (to hide hair)
+  // and fades smoothly to transparent at the bottom (to blend with the skin/forehead)
+  const fragmentShader = `
+    uniform vec3 uColor;
+    varying vec2 vUv;
+    varying float vY;
+
+    void main() {
+      // The mask is pulled up around y = 0.0 to y = 0.5 roughly
+      // We want opacity to be 1.0 at the top, and smoothstep to 0.0 at the bottom bounds of the mesh
+      
+      // Calculate alpha based on vertical position
+      // Using vUv.y: 0 is bottom (forehead), 1 is top (crown)
+      float alpha = smoothstep(0.1, 0.4, vUv.y); 
+
+      // We can also fade the edges horizontally to prevent jagged cuts on the side
+      float edgeX = 1.0 - abs(vUv.x * 2.0 - 1.0);
+      alpha *= smoothstep(0.0, 0.2, edgeX);
+
+      gl_FragColor = vec4(uColor, alpha);
+    }
+  `;
+
   return (
     <mesh ref={meshRef} geometry={geometry}>
-      <meshStandardMaterial 
+      <shaderMaterial 
         ref={materialRef}
-        color={0xffccaa}
-        roughness={0.5}
-        metalness={0.1}
-        side={THREE.DoubleSide} 
+        vertexShader={vertexShader}
+        fragmentShader={fragmentShader}
+        uniforms={{ uColor: { value: new THREE.Vector3(0.8, 0.6, 0.5) } }}
         transparent={true}
-        opacity={1.0} // Fully opaque to hide hair, but we can blend the edges later
+        side={THREE.DoubleSide} 
+        depthWrite={false}
       />
     </mesh>
   );
