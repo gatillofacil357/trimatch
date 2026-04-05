@@ -11,7 +11,6 @@ import CanvasHairEngine from '@/components/CanvasHairEngine';
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
 import { useHairSegmenter } from '@/hooks/useHairSegmenter';
 import { analyzeFaceShape, AnalysisResult } from '@/utils/FaceShapeAnalyzer';
-import * as bodySegmentation from '@tensorflow-models/body-segmentation';
 import styles from './page.module.css';
 
 const HAIRSTYLES = [
@@ -42,11 +41,14 @@ export default function LiveEngine() {
     landmarks: [] as any[],
     matrix: null as THREE.Matrix4 | null,
     viewport: { vWidth: 0, vHeight: 0 },
-    lastUpdateTime: 0,
-    segmenting: false
+    lastUpdateTime: 0
   });
 
-  const segmentationRef = useRef<ImageData | null>(null);
+  const segmentationRef = useRef<{
+    mask: Uint8Array | null,
+    width: number,
+    height: number
+  }>({ mask: null, width: 0, height: 0 });
 
   const [mpInitialized, setMpInitialized] = useState(false);
 
@@ -68,28 +70,20 @@ export default function LiveEngine() {
             trackingRef.current.matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
           }
           
-          // 2. SEGMENTATION (v9.2 TFJS Async)
-          if (imageSegmenter && !trackingRef.current.segmenting) {
-             trackingRef.current.segmenting = true;
-             imageSegmenter.segmentPeople(video).then(async (people) => {
-                 if (people && people.length > 0) {
-                     // bodySegmentation exposes a helper to convert predictions directly to an ImageData alpha mask
-                     try {
-                         const imgData = await bodySegmentation.toBinaryMask(people);
-                         
-                         segmentationRef.current = imgData;
-                         trackingRef.current.segmenting = false;
-                     } catch(err) {
-                         console.error("Mask conversion error:", err);
-                         trackingRef.current.segmenting = false;
-                     }
-                 } else {
-                     trackingRef.current.segmenting = false;
-                 }
-             }).catch(err => {
-                 console.error("Segmentation error:", err);
-                 trackingRef.current.segmenting = false;
-             });
+          // 2. SEGMENTATION (v9.3 Tasks-Vision Native)
+          if (imageSegmenter) {
+            imageSegmenter.segmentForVideo(video, time, (result) => {
+               const mask = result.categoryMask;
+               if (mask) {
+                  // Direct Uint8Array output from fast Tasks API
+                  // Contains 0 for background, >0 for person/objects
+                  segmentationRef.current = {
+                    mask: new Uint8Array(mask.getAsFloat32Array()), // Safe casting for category arrays
+                    width: mask.width,
+                    height: mask.height
+                  };
+               }
+            });
           }
 
           // VIEWPORT

@@ -15,7 +15,7 @@ interface CanvasHairEngineProps {
     landmarks: any[],
     matrix: THREE.Matrix4 | null
   }>;
-  segmentationRef: React.RefObject<ImageData | null>;
+  segmentationRef: React.RefObject<{ mask: Uint8Array | null, width: number, height: number }>;
   activeStyle: string;
 }
 
@@ -81,16 +81,25 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const topForehead = landmarks[10];
 
           // We build the physical isolation mask
-          const segImg = segmentationRef.current;
-          if (segImg && segImg.width > 0 && segImg.height > 0) {
+          const seg = segmentationRef.current;
+          if (seg && seg.mask && seg.width > 0 && seg.height > 0) {
               const segCanvas = document.createElement('canvas');
-              segCanvas.width = segImg.width;
-              segCanvas.height = segImg.height;
+              segCanvas.width = seg.width;
+              segCanvas.height = seg.height;
               const sCtx = segCanvas.getContext('2d');
               
               if (sCtx) {
-                  // A. Draw natively mapped ImageData directly
-                  sCtx.putImageData(segImg, 0, 0);
+                  // A. Create ImageData where the person is solid white, background is transparent
+                  const imgData = new ImageData(seg.width, seg.height);
+                  for (let i = 0; i < seg.mask.length; i++) {
+                      // mask > 0 implies Person class
+                      const isPerson = seg.mask[i] > 0;
+                      imgData.data[i * 4 + 0] = 255;
+                      imgData.data[i * 4 + 1] = 255;
+                      imgData.data[i * 4 + 2] = 255;
+                      imgData.data[i * 4 + 3] = isPerson ? 255 : 0; 
+                  }
+                  sCtx.putImageData(imgData, 0, 0);
 
                   // B. We ONLY want to erase the hair (top of head). 
                   // So we intersect the Selfie Mask with an Upper-Head Polygon!
@@ -98,20 +107,20 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
                   sCtx.globalCompositeOperation = 'destination-in';
                   
                   sCtx.save();
-                  sCtx.translate(segImg.width, 0);
+                  sCtx.translate(seg.width, 0);
                   sCtx.scale(-1, 1);
                   
                   sCtx.beginPath();
-                  sCtx.moveTo(segImg.width, 0); // Physical Left Top
-                  sCtx.lineTo(segImg.width, leftTemple.y * segImg.height);
-                  sCtx.lineTo(leftTemple.x * segImg.width, leftTemple.y * segImg.height);
+                  sCtx.moveTo(seg.width, 0); // Physical Left Top
+                  sCtx.lineTo(seg.width, leftTemple.y * seg.height);
+                  sCtx.lineTo(leftTemple.x * seg.width, leftTemple.y * seg.height);
                   
                   // Smooth Bezier Curve across the forehead
                   const midY = (leftTemple.y + rightTemple.y) / 2;
                   const cpY = 2 * topForehead.y - midY;
-                  sCtx.quadraticCurveTo(topForehead.x * segImg.width, cpY * segImg.height, rightTemple.x * segImg.width, rightTemple.y * segImg.height);
+                  sCtx.quadraticCurveTo(topForehead.x * seg.width, cpY * seg.height, rightTemple.x * seg.width, rightTemple.y * seg.height);
                   
-                  sCtx.lineTo(0, rightTemple.y * segImg.height); // To Physical Right
+                  sCtx.lineTo(0, rightTemple.y * seg.height); // To Physical Right
                   sCtx.lineTo(0, 0); // To Top Right
                   sCtx.closePath();
                   sCtx.fill();

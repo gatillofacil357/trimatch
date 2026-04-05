@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import * as bodySegmentation from '@tensorflow-models/body-segmentation';
-import '@tensorflow/tfjs-core';
-import '@tensorflow/tfjs-backend-webgl';
+import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 
-let globalImageSegmenter: bodySegmentation.BodySegmenter | null = null;
+let globalImageSegmenter: ImageSegmenter | null = null;
+let globalFilesetResolver: any = null;
 
 export const useHairSegmenter = () => {
-    const [imageSegmenter, setImageSegmenter] = useState<bodySegmentation.BodySegmenter | null>(globalImageSegmenter);
+    const [imageSegmenter, setImageSegmenter] = useState<ImageSegmenter | null>(globalImageSegmenter);
     const [loading, setLoading] = useState(!globalImageSegmenter);
     const [error, setError] = useState<string | null>(null);
 
@@ -20,17 +19,27 @@ export const useHairSegmenter = () => {
                 return;
             }
 
-            // Using the precise user-provided TS integration but using tfjs runtime to fix Webpack peer dependency crashes
-            const segmenter = await bodySegmentation.createSegmenter(
-              bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation, 
-              { runtime: 'tfjs', modelType: 'general' }
-            );
+            if (!globalFilesetResolver) {
+                globalFilesetResolver = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+                );
+            }
 
-            globalImageSegmenter = segmenter;
+            // Successfully discovered the true Selfie model URL format (.tflite) avoids 404
+            globalImageSegmenter = await ImageSegmenter.createFromOptions(globalFilesetResolver, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
+                    delegate: "GPU"
+                },
+                runningMode: "VIDEO",
+                outputCategoryMask: true,
+                outputConfidenceMasks: false
+            });
+
             setImageSegmenter(globalImageSegmenter);
             setLoading(false);
         } catch (err) {
-            console.error("Error initializing TFJS Body Segmenter:", err);
+            console.error("Error initializing ImageSegmenter:", err);
             setError("Error al cargar el segmentador de silueta.");
             setLoading(false);
         }

@@ -1,15 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-        config.resolve.fallback = {
-        ...config.resolve.fallback,
-        '@mediapipe/selfie_segmentation': false,
-        };
-    }
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@mediapipe/selfie_segmentation': false,
+    };
     return config;
   },
+  turbopack: {},
 };
 
 export default nextConfig;
