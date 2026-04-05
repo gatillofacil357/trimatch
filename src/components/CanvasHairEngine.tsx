@@ -24,14 +24,12 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
-  // EMA State for smooth tracking
   const stateRef = useRef({
     x: 0, y: 0, width: 0, height: 0, 
     rotY: 0, rotZ: 0,
     init: false
   });
 
-  // Preload Images
   useEffect(() => {
     let loadedCount = 0;
     const keys = Object.keys(ASSETS);
@@ -46,7 +44,6 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     });
   }, []);
 
-  // Main 2D Render Loop
   useEffect(() => {
     if (!imagesLoaded || !canvasRef.current || !webcamRef.current) return;
 
@@ -59,7 +56,6 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     const render = () => {
       const video = webcamRef.current.video;
       if (video && video.readyState >= 2) {
-        // Resize canvas to match video natively
         if (canvas.width !== video.videoWidth) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
@@ -70,13 +66,11 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         const h = canvas.height;
 
         ctx.clearRect(0, 0, w, h);
-        
         ctx.save();
-        // Mirror the canvas to match the user camera preview
+        
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
 
-        // 1. DRAW VIDEO FEED
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(video, 0, 0, w, h);
 
@@ -85,107 +79,96 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const rightTemple = landmarks[454];
           const topForehead = landmarks[10];
 
-          // 2. FOREHEAD CLIPPING PATH
-          // We define a polygon that starts at left temple, goes across the upper forehead,
-          // to right temple, and wraps entirely around the TOP of the canvas.
-          // By clipping to this, the hair PNG cannot render over the face/eyes.
-          const hairlineCurve = [
-            234, 127, 162, 21, 54, 103, 67, 109, 10, 338, 297, 332, 284, 251, 389, 356, 454 
-          ];
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(0, 0); // Top Left
-          ctx.lineTo(0, leftTemple.y * h); // Down to left temple height at screen edge
-          ctx.lineTo(leftTemple.x * w, leftTemple.y * h); // In to left temple
+          const offCanvas = document.createElement('canvas');
+          offCanvas.width = w;
+          offCanvas.height = h;
+          const octx = offCanvas.getContext('2d');
           
-          // Trace up and across forehead
-          for (let idx of hairlineCurve) {
-              const pt = landmarks[idx];
-              if (pt) {
-                  ctx.lineTo(pt.x * w, pt.y * h);
+          if (octx) {
+              octx.translate(w, 0);
+              octx.scale(-1, 1);
+
+              const anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
+              const anchorY = topForehead.y * h;
+              
+              const dx = (rightTemple.x - leftTemple.x) * w;
+              const dy = (rightTemple.y - leftTemple.y) * h;
+              const headWidthPx = Math.sqrt(dx*dx + dy*dy);
+              const targetW = headWidthPx * 1.6;
+
+              let targetRotZ = 0;
+              let targetRotY = 0;
+              if (matrix) {
+                 const pos = new THREE.Vector3();
+                 const quat = new THREE.Quaternion();
+                 const scl = new THREE.Vector3();
+                 matrix.decompose(pos, quat, scl);
+                 const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
+                 targetRotZ = euler.z; 
+                 targetRotY = euler.y; 
               }
+
+              const sr = stateRef.current;
+              const s = 0.35;
+              if (!sr.init) {
+                 sr.x = anchorX;
+                 sr.y = anchorY;
+                 sr.width = targetW;
+                 sr.rotZ = targetRotZ;
+                 sr.rotY = targetRotY;
+                 sr.init = true;
+              } else {
+                 sr.x += (anchorX - sr.x) * s;
+                 sr.y += (anchorY - sr.y) * s;
+                 sr.width += (targetW - sr.width) * s;
+                 sr.rotZ += (targetRotZ - sr.rotZ) * s;
+                 sr.rotY += (targetRotY - sr.rotY) * s;
+              }
+
+              const hairImg = imagesRef.current[activeStyle];
+              if (hairImg) {
+                  const aspect = hairImg.height / hairImg.width;
+                  const drawW = sr.width;
+                  const drawH = sr.width * aspect;
+                  const yOffset = -drawH * 0.90; 
+
+                  octx.save();
+                  octx.translate(sr.x, sr.y);
+                  octx.rotate(-sr.rotZ); 
+                  octx.scale(Math.cos(sr.rotY), 1.0);
+                  octx.filter = `brightness(0.9) contrast(1.1)`;
+                  octx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
+                  octx.restore();
+
+                  const hairlineCurve = [
+                    234, 127, 162, 21, 54, 103, 67, 109, 10, 338, 297, 332, 284, 251, 389, 356, 454 
+                  ];
+
+                  octx.globalCompositeOperation = 'destination-out';
+                  octx.filter = 'blur(6px)'; 
+
+                  octx.beginPath();
+                  octx.moveTo(w, h); 
+                  octx.lineTo(w, leftTemple.y * h); 
+                  octx.lineTo(leftTemple.x * w, leftTemple.y * h); 
+
+                  for (let idx of hairlineCurve) {
+                      const pt = landmarks[idx];
+                      if (pt) octx.lineTo(pt.x * w, pt.y * h);
+                  }
+
+                  octx.lineTo(rightTemple.x * w, rightTemple.y * h);
+                  octx.lineTo(0, rightTemple.y * h); 
+                  octx.lineTo(0, h); 
+                  octx.closePath();
+                  octx.fill();
+              }
+
+              ctx.save();
+              ctx.setTransform(1, 0, 0, 1, 0, 0); 
+              ctx.drawImage(offCanvas, 0, 0);
+              ctx.restore();
           }
-          
-          ctx.lineTo(rightTemple.x * w, rightTemple.y * h); // Right temple
-          ctx.lineTo(w, rightTemple.y * h); // Out to screen edge
-          ctx.lineTo(w, 0); // Top Right
-          ctx.closePath();
-          
-          // Apply strict clipping mask so hair physically cannot drop below this forehead line
-          ctx.clip();
-
-
-          // 3. DRAW NEW HAIRSTYLE PNG
-          // Compute anchor (forehead apex)
-          const anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
-          const anchorY = topForehead.y * h;
-
-          // Compute dynamic scale
-          const dx = (rightTemple.x - leftTemple.x) * w;
-          const dy = (rightTemple.y - leftTemple.y) * h;
-          const headWidthPx = Math.sqrt(dx*dx + dy*dy);
-          
-          // Expand width to occlude natural side-hair
-          const targetW = headWidthPx * 1.6;
-
-          // Compute rotation 
-          let targetRotZ = 0;
-          let targetRotY = 0;
-          if (matrix) {
-             const pos = new THREE.Vector3();
-             const quat = new THREE.Quaternion();
-             const scl = new THREE.Vector3();
-             matrix.decompose(pos, quat, scl);
-             const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
-             targetRotZ = euler.z; // Roll
-             targetRotY = euler.y; // Yaw
-          }
-
-          // EMA Smoothing
-          const sr = stateRef.current;
-          const s = 0.35;
-          if (!sr.init) {
-             sr.x = anchorX;
-             sr.y = anchorY;
-             sr.width = targetW;
-             sr.rotZ = targetRotZ;
-             sr.rotY = targetRotY;
-             sr.init = true;
-          } else {
-             sr.x += (anchorX - sr.x) * s;
-             sr.y += (anchorY - sr.y) * s;
-             sr.width += (targetW - sr.width) * s;
-             sr.rotZ += (targetRotZ - sr.rotZ) * s;
-             sr.rotY += (targetRotY - sr.rotY) * s;
-          }
-
-          const hairImg = imagesRef.current[activeStyle];
-          if (hairImg) {
-              const aspect = hairImg.height / hairImg.width;
-              const drawW = sr.width;
-              const drawH = sr.width * aspect;
-              
-              // Shift the image down over the anchor slightly so it has room to be clipped
-              // visually creating a hard edge at the hairline perfectly tailored to their skull.
-              const yOffset = -drawH * 0.70;
-
-              // Move drawing context to cranial anchor
-              ctx.translate(sr.x, sr.y);
-              
-              // Roll
-              ctx.rotate(-sr.rotZ); 
-
-              // Simulated Yaw via scaling squish
-              const yawSquish = Math.cos(sr.rotY);
-              ctx.scale(yawSquish, 1.0);
-
-              // Draw PNG
-              ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
-          }
-          
-          // Restore from clipping
-          ctx.restore();
         }
         
         ctx.restore();
