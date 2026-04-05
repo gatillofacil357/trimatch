@@ -1,5 +1,6 @@
-Deployment Version: 9.1.0
-Triggered at: 2026-04-04 20:40:00
+Deployment Version: 9.2.0
+Triggered at: 2026-04-04 21:07:00
 Status: FORCING_REDEPLOY
-Strategy: 2D_PHOTO_REALISM
+Strategy: DYNAMIC_AR_INTEGRATION
 3D_REMOVED: TRUE
+
