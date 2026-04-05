@@ -81,45 +81,43 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         ctx.drawImage(video, 0, 0, w, h);
 
         if (landmarks && landmarks.length > 0) {
-          // Forehead geometry mapping
-          const foreheadIndices = [234, 227, 116, 111, 117, 118, 101, 100, 109, 10, 338, 330, 331, 340, 346, 347, 447, 454];
-          
-          // 3. REMOVE ORIGINAL HAIR
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.beginPath();
-          
-          // We start at the left temple
-          const startPt = landmarks[foreheadIndices[0]];
-          ctx.moveTo(startPt.x * w, startPt.y * h);
-          
-          // Go UP to top left corner of screen
-          ctx.lineTo(0, startPt.y * h);
-          ctx.lineTo(0, 0); // Top Left
-          ctx.lineTo(w, 0); // Top Right
-          
-          // Go to Right Temple
-          const endPt = landmarks[foreheadIndices[foreheadIndices.length - 1]];
-          ctx.lineTo(w, endPt.y * h);
-          ctx.lineTo(endPt.x * w, endPt.y * h);
-
-          // Trace backwards across the hairline to connect
-          for (let i = foreheadIndices.length - 1; i >= 0; i--) {
-             const pt = landmarks[foreheadIndices[i]];
-             ctx.lineTo(pt.x * w, pt.y * h);
-          }
-          
-          // Apply blur to the erasure edge to blend naturally
-          ctx.filter = 'blur(4px)';
-          ctx.fill();
-          ctx.filter = 'none';
-
-          // 4. DRAW NEW HAIRSTYLE
           const leftTemple = landmarks[234];
           const rightTemple = landmarks[454];
-          const nose = landmarks[1];
           const topForehead = landmarks[10];
 
-          // Compute anchor (midpoint of temples for X, forehead for Y)
+          // 2. FOREHEAD CLIPPING PATH
+          // We define a polygon that starts at left temple, goes across the upper forehead,
+          // to right temple, and wraps entirely around the TOP of the canvas.
+          // By clipping to this, the hair PNG cannot render over the face/eyes.
+          const hairlineCurve = [
+            234, 127, 162, 21, 54, 103, 67, 109, 10, 338, 297, 332, 284, 251, 389, 356, 454 
+          ];
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(0, 0); // Top Left
+          ctx.lineTo(0, leftTemple.y * h); // Down to left temple height at screen edge
+          ctx.lineTo(leftTemple.x * w, leftTemple.y * h); // In to left temple
+          
+          // Trace up and across forehead
+          for (let idx of hairlineCurve) {
+              const pt = landmarks[idx];
+              if (pt) {
+                  ctx.lineTo(pt.x * w, pt.y * h);
+              }
+          }
+          
+          ctx.lineTo(rightTemple.x * w, rightTemple.y * h); // Right temple
+          ctx.lineTo(w, rightTemple.y * h); // Out to screen edge
+          ctx.lineTo(w, 0); // Top Right
+          ctx.closePath();
+          
+          // Apply strict clipping mask so hair physically cannot drop below this forehead line
+          ctx.clip();
+
+
+          // 3. DRAW NEW HAIRSTYLE PNG
+          // Compute anchor (forehead apex)
           const anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
           const anchorY = topForehead.y * h;
 
@@ -128,8 +126,8 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const dy = (rightTemple.y - leftTemple.y) * h;
           const headWidthPx = Math.sqrt(dx*dx + dy*dy);
           
-          // The hair needs to be slightly wider than the face
-          const targetW = headWidthPx * 1.5;
+          // Expand width to occlude natural side-hair
+          const targetW = headWidthPx * 1.6;
 
           // Compute rotation 
           let targetRotZ = 0;
@@ -168,33 +166,26 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               const drawW = sr.width;
               const drawH = sr.width * aspect;
               
-              // Lift the image so 95% of it is ABOVE the forehead line,
-              // leaving only 5% of overlap to blend into the skin edge.
-              // This strictly prevents the image from covering the eyes.
-              const yOffset = -drawH * 0.95;
+              // Shift the image down over the anchor slightly so it has room to be clipped
+              // visually creating a hard edge at the hairline perfectly tailored to their skull.
+              const yOffset = -drawH * 0.70;
 
-              // 5. BLENDING & SKEW (Canvas transform)
-              ctx.globalCompositeOperation = 'source-over';
+              // Move drawing context to cranial anchor
+              ctx.translate(sr.x, sr.y);
               
-              // We want to tint it slightly to match room lighting. We can't do complex shaders in 2D,
-              // but we can adjust globalAlpha or drop shadow if needed.
-              
-              const moveX = sr.x;
-              const moveY = sr.y;
-
-              ctx.translate(moveX, moveY);
-              
-              // Apply Roll
+              // Roll
               ctx.rotate(-sr.rotZ); 
 
-              // Simulate 3D Yaw by squishing X scale based on rotY
-              // If rotY is positive, head turned right. We compress width.
+              // Simulated Yaw via scaling squish
               const yawSquish = Math.cos(sr.rotY);
               ctx.scale(yawSquish, 1.0);
 
-              // Draw
+              // Draw PNG
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
           }
+          
+          // Restore from clipping
+          ctx.restore();
         }
         
         ctx.restore();
