@@ -6,9 +6,8 @@ import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // Components
-import HairOverlay2D from '@/components/HairOverlay2D';
+import ProceduralHair3D from '@/components/ProceduralHair3D';
 import HairMasker from '@/components/HairMasker';
-import FaceOccluder from '@/components/FaceOccluder';
 import BeardFilter from '@/components/BeardFilter';
 
 // Hooks & Utils
@@ -168,17 +167,14 @@ export default function LiveEngine() {
                   {/* Video replacement (Erase live hair) */}
                   <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
 
-                  {/* Face Occlusion (Bald Cap to hide original hair) */}
-                  <FaceOccluder webcamRef={webcamRef} trackingRef={trackingRef} />
+                  {/* 3D Volumetric Hair Replacement (Replaces old FaceOccluder + 2D Overlay) */}
+                  <ProceduralHair3D trackingRef={trackingRef} />
               </Canvas>
             </div>
 
-            {/* 2. LAYER: 2D OVERLAY (Topmost Photo-Realism) */}
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 20, pointerEvents: 'none' }}>
-              <HairOverlay2D 
-                  styleId={activeStyle} 
-                  trackingRef={trackingRef} 
-              />
+            {/* (Removed HairOverlay2D - Now handled entirely in True 3D Canvas above) */}
+            
+            <div className={styles.liveAnalysisBadge}>
             </div>
           </>
         )}
