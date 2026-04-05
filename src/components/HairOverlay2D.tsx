@@ -19,36 +19,62 @@ const HAIR_ASSETS: Record<string, string> = {
 export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  
+  // Smoothing values
+  const stateRef = useRef({
+    x: 0, y: 0, width: 0, angle: 0,
+    initialized: false
+  });
 
   useEffect(() => {
+    const smoothing = 0.35; // EMA factor (lower = smoother/slower, higher = snappier)
+
     const updatePosition = () => {
       const { landmarks } = trackingRef.current;
-      if (landmarks.length > 0 && containerRef.current && imgRef.current) {
-        // Landmarks for anchor: Forehead Center (151) and Temples (234, 454)
+      if (landmarks && landmarks.length > 0 && containerRef.current && imgRef.current) {
+        // 1. LANDMARKS (MediaPipe Indices)
+        // 151: Forehead Center (Baseline for hair)
+        // 10: Top of Head (Upper limit)
+        // 234, 454: Temples (Rotation/Scale)
         const forehead = landmarks[151] || landmarks[10];
+        const topHead = landmarks[10];
         const leftTemple = landmarks[234];
         const rightTemple = landmarks[454];
 
-        // 1. Calculate Pixel Position
-        // Webcam is usually mirrored by CSS transform: scaleX(-1) in LiveEngine
-        const x = forehead.x * 100;
-        const y = forehead.y * 100;
+        // 2. COORDINATES
+        const targetX = forehead.x * 100;
+        const targetY = forehead.y * 100;
 
-        // 2. Calculate Angle (Rotation)
+        // 3. SCALE (Based on Temple Distance)
         const dx = rightTemple.x - leftTemple.x;
         const dy = rightTemple.y - leftTemple.y;
-        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-
-        // 3. Calculate Width (Scale)
         const templeDist = Math.sqrt(dx * dx + dy * dy);
-        // Multiplier to cover the head realistically
-        const width = templeDist * 165; // Percent of container width
+        const targetWidth = templeDist * 180; // Adjusted multiplier for new assets
 
-        // 4. APPLY STYLES
-        imgRef.current.style.width = `${width}%`;
-        imgRef.current.style.left = `${x}%`;
-        imgRef.current.style.top = `${y}%`;
-        imgRef.current.style.transform = `translate(-50%, -65%) rotate(${angle}deg)`;
+        // 4. ROTATION (Z-axis roll)
+        const targetAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+        // 5. SMOOTHING (EMA)
+        if (!stateRef.current.initialized) {
+          stateRef.current = { x: targetX, y: targetY, width: targetWidth, angle: targetAngle, initialized: true };
+        } else {
+          stateRef.current.x += (targetX - stateRef.current.x) * smoothing;
+          stateRef.current.y += (targetY - stateRef.current.y) * smoothing;
+          stateRef.current.width += (targetWidth - stateRef.current.width) * smoothing;
+          stateRef.current.angle += (targetAngle - stateRef.current.angle) * smoothing;
+        }
+
+        // 6. APPLY STYLES (v9.2 Anchor)
+        // Offset Y slightly based on forehead-to-top distance for anatomical fit
+        const foreheadScale = Math.abs(topHead.y - forehead.y) * 100;
+        const dynamicOffsetY = -75 - (foreheadScale * 0.5); // Nudges up based on forehead size
+
+        imgRef.current.style.width = `${stateRef.current.width}%`;
+        imgRef.current.style.left = `${stateRef.current.x}%`;
+        imgRef.current.style.top = `${stateRef.current.y}%`;
+        imgRef.current.style.transform = `translate(-50%, ${dynamicOffsetY}%) rotate(${stateRef.current.angle}deg)`;
+        imgRef.current.style.opacity = '0.94'; // Subtle blend
+        imgRef.current.style.filter = 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))'; // Depth
       }
       requestAnimationFrame(updatePosition);
     };
