@@ -25,10 +25,10 @@ export const useHairSegmenter = () => {
                 );
             }
 
-            // Dedicated Hair Segmenter Model (Float16 for speed)
+            // Updated to the superior Selfie Segmenter per user's pipeline instructions
             globalImageSegmenter = await ImageSegmenter.createFromOptions(globalFilesetResolver, {
                 baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float16/1/hair_segmenter.task",
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.task",
                     delegate: "GPU"
                 },
                 runningMode: "VIDEO",
