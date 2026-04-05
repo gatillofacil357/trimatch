@@ -174,7 +174,7 @@ export default function LiveEngine() {
                   <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
 
                   {/* Face Occlusion */}
-                  <FaceOccluder trackingRef={trackingRef} />
+                  <FaceOccluder webcamRef={webcamRef} trackingRef={trackingRef} />
               </Canvas>
             </div>
           </>

@@ -53,46 +53,6 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
     img.crossOrigin = "Anonymous";
     
     img.onload = () => {
-      // Rechazar imágenes con múltiples vistas (aspect ratio muy ancho)
-      const aspect = img.naturalWidth / img.naturalHeight;
-      if (aspect > 1.35) {
-        console.warn(`[AR Engine] Asset ${src} bloqueado: parece contener múltiples vistas (ratio ${aspect}).`);
-        setAssetStatus('INVALID');
-        return;
-      }
-
-      // Validar canal alpha real (Canvas API)
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-        // Muestrear esquinas buscando fondos sólidos / blancos
-        const coords = [
-          [0, 0], 
-          [img.naturalWidth - 1, 0], 
-          [0, Math.floor(img.naturalHeight / 2)], 
-          [img.naturalWidth - 1, Math.floor(img.naturalHeight / 2)] 
-        ];
-        
-        let hasSolidBg = false;
-        for (let [x, y] of coords) {
-          const pixel = ctx.getImageData(x, y, 1, 1).data;
-          // Si el pixel es completamente opaco (Alpha = 255)
-          if (pixel[3] === 255) {
-            hasSolidBg = true;
-            break;
-          }
-        }
-        
-        if (hasSolidBg) {
-          console.warn(`[AR Engine] Asset ${src} bloqueado: detectado fondo sólido (no tiene canal alpha transparente).`);
-          setAssetStatus('INVALID');
-          return;
-        }
-      }
-
       setAssetStatus('VALID');
       if (imgRef.current) imgRef.current.src = src;
     };
@@ -191,18 +151,9 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
           mixBlendMode: 'normal',
           WebkitMaskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
           maskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
-          // 5. DEBUG VISUAL
-          border: assetStatus === 'VALID' ? '3px solid #00ff00' : '3px solid #ff0000',
-          boxSizing: 'border-box'
         }}
-        // Ocultar si es inválida
         hidden={assetStatus === 'INVALID'}
       />
-      {assetStatus === 'INVALID' && (
-        <div style={{ position: 'absolute', top: 50, left: '50%', transform: 'translateX(-50%) scaleX(-1)', color: 'white', background: '#ff0000', padding: '10px', borderRadius: '8px', zIndex: 100, textAlign: 'center', fontWeight: 'bold' }}>
-          BLOQUEO AR ACTIVO<br/>El asset contiene fondo sólido o múltiples vistas.
-        </div>
-      )}
     </div>
   );
 }

@@ -54,6 +54,7 @@ function TryOnStudioContent() {
   const { faceLandmarker, loading: mpLoading } = useFaceLandmarker();
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dummyWebcamRef = useRef<any>(null); // For FaceOccluder strict typing
 
   useEffect(() => {
     trackingRef.current.viewport = containerSize;
@@ -168,7 +169,7 @@ function TryOnStudioContent() {
           <ambientLight intensity={1.5} />
           <directionalLight position={[0, 50, 100]} intensity={2.5} />
           
-          <FaceOccluder trackingRef={trackingRef} />
+          <FaceOccluder webcamRef={dummyWebcamRef} trackingRef={trackingRef} />
         </Canvas>
       </div>
     );
