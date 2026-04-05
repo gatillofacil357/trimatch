@@ -15,13 +15,13 @@ interface HairOverlay2DProps {
 // 3. ESTRUCTURA DE DATOS
 const ASSETS: Record<string, { front: string, side?: string, back?: string }> = {
   'fade': {
-    front: '/assets/hair/fade.png',
+    front: '/assets/hair/fade_front.png',
   },
   'buzz': {
-    front: '/assets/hair/buzz.png',
+    front: '/assets/hair/buzz_front.png',
   },
   'undercut': {
-    front: '/assets/hair/undercut.png',
+    front: '/assets/hair/undercut_front.png',
   }
 };
 

@@ -166,9 +166,6 @@ export default function LiveEngine() {
                   
                   {/* Video replacement (Erase live hair) */}
                   <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
-
-                  {/* Beard Filter Replication */}
-                  <BeardFilter webcamRef={webcamRef} trackingRef={trackingRef} />
               </Canvas>
             </div>
 
