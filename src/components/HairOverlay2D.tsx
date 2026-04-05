@@ -189,7 +189,7 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
         style={{
           position: 'absolute', transition: 'none', display: 'block',
           mixBlendMode: 'normal',
-          webkitMaskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
+          WebkitMaskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
           maskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
           // 5. DEBUG VISUAL
           border: assetStatus === 'VALID' ? '3px solid #00ff00' : '3px solid #ff0000',
