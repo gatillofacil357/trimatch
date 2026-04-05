@@ -78,7 +78,7 @@ export default function LiveEngine() {
                   // Direct Uint8Array output from fast Tasks API
                   // Contains 0 for background, >0 for person/objects
                   segmentationRef.current = {
-                    mask: new Uint8Array(mask.getAsFloat32Array()), // Safe casting for category arrays
+                    mask: mask.getAsUint8Array(), // Native array casting
                     width: mask.width,
                     height: mask.height
                   };

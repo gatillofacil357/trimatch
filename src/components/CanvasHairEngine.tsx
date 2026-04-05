@@ -107,21 +107,20 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
                   sCtx.globalCompositeOperation = 'destination-in';
                   
                   sCtx.save();
-                  sCtx.translate(seg.width, 0);
-                  sCtx.scale(-1, 1);
+                  // No mirroring! Seg map and landmarks are perfectly aligned natively.
                   
                   sCtx.beginPath();
-                  sCtx.moveTo(seg.width, 0); // Physical Left Top
-                  sCtx.lineTo(seg.width, leftTemple.y * seg.height);
-                  sCtx.lineTo(leftTemple.x * seg.width, leftTemple.y * seg.height);
+                  sCtx.moveTo(0, 0); // Top-left (user physical right)
+                  sCtx.lineTo(0, rightTemple.y * seg.height);
+                  sCtx.lineTo(rightTemple.x * seg.width, rightTemple.y * seg.height);
                   
-                  // Smooth Bezier Curve across the forehead
+                  // Smooth Bezier Curve across the forehead from Right Temple to Left Temple
                   const midY = (leftTemple.y + rightTemple.y) / 2;
                   const cpY = 2 * topForehead.y - midY;
-                  sCtx.quadraticCurveTo(topForehead.x * seg.width, cpY * seg.height, rightTemple.x * seg.width, rightTemple.y * seg.height);
+                  sCtx.quadraticCurveTo(topForehead.x * seg.width, cpY * seg.height, leftTemple.x * seg.width, leftTemple.y * seg.height);
                   
-                  sCtx.lineTo(0, rightTemple.y * seg.height); // To Physical Right
-                  sCtx.lineTo(0, 0); // To Top Right
+                  sCtx.lineTo(seg.width, leftTemple.y * seg.height); // To Top-right (user physical left)
+                  sCtx.lineTo(seg.width, 0); // Up to corner
                   sCtx.closePath();
                   sCtx.fill();
                   sCtx.restore();
