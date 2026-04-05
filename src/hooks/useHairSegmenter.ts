@@ -20,10 +20,10 @@ export const useHairSegmenter = () => {
                 return;
             }
 
-            // Using the precise user-provided TS integration
+            // Using the precise user-provided TS integration but using tfjs runtime to fix Webpack peer dependency crashes
             const segmenter = await bodySegmentation.createSegmenter(
               bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation, 
-              { runtime: 'mediapipe', solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation' }
+              { runtime: 'tfjs', modelType: 'general' }
             );
 
             globalImageSegmenter = segmenter;
