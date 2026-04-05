@@ -8,7 +8,7 @@ import * as THREE from 'three';
 // Components
 import HairOverlay2D from '@/components/HairOverlay2D';
 import HairMasker from '@/components/HairMasker';
-import BeardFilter from '@/components/BeardFilter';
+import FaceOccluder from '@/components/FaceOccluder';
 
 // Hooks & Utils
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
@@ -167,8 +167,8 @@ export default function LiveEngine() {
                   {/* Video replacement (Erase live hair) */}
                   <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
 
-                  {/* Beard Filter Replication Test */}
-                  <BeardFilter webcamRef={webcamRef} trackingRef={trackingRef} />
+                  {/* Face Occlusion (Bald Cap) */}
+                  <FaceOccluder webcamRef={webcamRef} trackingRef={trackingRef} />
               </Canvas>
             </div>
 
