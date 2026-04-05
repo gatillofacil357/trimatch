@@ -2,13 +2,10 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import Webcam from 'react-webcam';
-import { Canvas } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // Components
-import ProceduralHair3D from '@/components/ProceduralHair3D';
-import HairMasker from '@/components/HairMasker';
-import BeardFilter from '@/components/BeardFilter';
+import CanvasHairEngine from '@/components/CanvasHairEngine';
 
 // Hooks & Utils
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
@@ -154,28 +151,13 @@ export default function LiveEngine() {
 
         {mpInitialized && (
           <>
-            {/* 1. LAYER: Background & Occlusion (3D Engine) */}
-            <div className={styles.canvasContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
-              <Canvas 
-                 camera={{ position: [0, 0, 5], fov: 50 }} 
-                 dpr={[1, 2]}
-                 style={{ width: '100%', height: '100%' }}
-              >
-                  <ambientLight intensity={1.5} />
-                  <pointLight position={[10, 10, 10]} intensity={1} />
-                  
-                  {/* Video replacement (Erase live hair) */}
-                  <HairMasker webcamRef={webcamRef} segmentationRef={segmentationRef} />
-
-                  {/* 3D Volumetric Hair Replacement (Replaces old FaceOccluder + 2D Overlay) */}
-                  <ProceduralHair3D trackingRef={trackingRef} />
-              </Canvas>
-            </div>
-
-            {/* (Removed HairOverlay2D - Now handled entirely in True 3D Canvas above) */}
-            
-            <div className={styles.liveAnalysisBadge}>
-            </div>
+            {/* PURE 2D PIPELINE: ERASES HAIR AND COMPOSITES NEW STYLES NATIVELY */}
+            <CanvasHairEngine 
+               webcamRef={webcamRef} 
+               trackingRef={trackingRef} 
+               segmentationRef={segmentationRef} 
+               activeStyle={activeStyle}
+            />
           </>
         )}
       </div>
