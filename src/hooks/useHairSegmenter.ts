@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
+import * as bodySegmentation from '@tensorflow-models/body-segmentation';
+import '@tensorflow/tfjs-core';
+import '@tensorflow/tfjs-backend-webgl';
 
-let globalImageSegmenter: ImageSegmenter | null = null;
-let globalFilesetResolver: any = null;
+let globalImageSegmenter: bodySegmentation.BodySegmenter | null = null;
 
 export const useHairSegmenter = () => {
-    const [imageSegmenter, setImageSegmenter] = useState<ImageSegmenter | null>(globalImageSegmenter);
+    const [imageSegmenter, setImageSegmenter] = useState<bodySegmentation.BodySegmenter | null>(globalImageSegmenter);
     const [loading, setLoading] = useState(!globalImageSegmenter);
     const [error, setError] = useState<string | null>(null);
 
@@ -19,28 +20,18 @@ export const useHairSegmenter = () => {
                 return;
             }
 
-            if (!globalFilesetResolver) {
-                globalFilesetResolver = await FilesetResolver.forVisionTasks(
-                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-                );
-            }
+            // Using the precise user-provided TS integration
+            const segmenter = await bodySegmentation.createSegmenter(
+              bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation, 
+              { runtime: 'mediapipe', solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation' }
+            );
 
-            // Updated to the superior Selfie Segmenter per user's pipeline instructions
-            globalImageSegmenter = await ImageSegmenter.createFromOptions(globalFilesetResolver, {
-                baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.task",
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                outputCategoryMask: true,
-                outputConfidenceMasks: false
-            });
-
+            globalImageSegmenter = segmenter;
             setImageSegmenter(globalImageSegmenter);
             setLoading(false);
         } catch (err) {
-            console.error("Error initializing ImageSegmenter:", err);
-            setError("Error al cargar el segmentador de cabello.");
+            console.error("Error initializing TFJS Body Segmenter:", err);
+            setError("Error al cargar el segmentador de silueta.");
             setLoading(false);
         }
     }, []);
