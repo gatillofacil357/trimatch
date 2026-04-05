@@ -90,48 +90,24 @@ export default function BeardFilter({ webcamRef, trackingRef }: BeardFilterProps
     }
 
     void main() {
-      // Create high-frequency directional noise to look like short hairs
-      // Scale X massively more than Y to create vertical/diagonal strands
-      vec2 hairUv = vUv * vec2(150.0, 40.0);
+      // Instead of absolute screen UV, we ensure it prints everywhere moderately
+      // to debug and verify it renders at all
       
-      // Arc the strands so they curve around the chin somewhat
-      hairUv.x += sin(vUv.y * 3.14) * 5.0; 
-      
+      vec2 hairUv = vUv * vec2(200.0, 50.0);
       float hairTex = noise(hairUv);
-      // Sharpen the noise to make them look like distinct thin hairs instead of clouds
       hairTex = smoothstep(0.4, 0.8, hairTex);
 
-      // --- MASK CALCULATION ---
-      // Vertical Fade: Fade from cheeks (y=0.6) to chin (y=0.9)
-      float verticalFade = smoothstep(0.65, 0.95, vUv.y); 
-      
-      // Horizontal Fade: Soft edges near ears
-      float edgeX = 1.0 - abs(vUv.x - 0.5) * 2.0; 
-      float horizontalFade = smoothstep(0.1, 0.5, edgeX);
-
-      // Mouth Cutout
+      // Simple alpha mapping relative to the center 
       float dx = (vUv.x - 0.5) * 2.0; 
-      float dy = (vUv.y - 0.75) * 2.5; 
-      float mouthDist = dx*dx + dy*dy;
-      float mouthHole = smoothstep(0.06, 0.18, mouthDist); 
+      float horizontalFade = 1.0 - (dx * dx); // Parabola vanishing at edges
 
-      // Combine spatial mask
-      float maskAlpha = verticalFade * horizontalFade * mouthHole;
-      
-      // Modulate the mask heavily by the hair texture so we only see the "strands"
-      // not a solid block. Adding a little base alpha so it's not totally sparse.
-      float finalAlpha = maskAlpha * (hairTex * 0.9 + 0.1);
-      
-      // Boost density where the mask is strongest (chin)
-      finalAlpha *= 1.2;
-
-      // Ensure NO rendering at all if alpha is practically zero
-      if(finalAlpha < 0.01) discard;
+      // We just ensure 100% visibility for debugging but with noise
+      float finalAlpha = (hairTex * 0.8 + 0.2) * horizontalFade;
 
       // Darken the color in the "strand" centers for depth
-      vec3 finalColor = uColor * (0.5 + hairTex * 0.5);
+      vec3 finalColor = uColor * (0.3 + hairTex * 0.7);
 
-      gl_FragColor = vec4(finalColor, finalAlpha);    
+      gl_FragColor = vec4(finalColor, clamp(finalAlpha, 0.0, 1.0));    
     }
   `;
 
@@ -141,7 +117,7 @@ export default function BeardFilter({ webcamRef, trackingRef }: BeardFilterProps
         ref={materialRef}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
-        uniforms={{ uColor: { value: new THREE.Vector3(0.1, 0.05, 0.02) } }} // Dark brownish-black beard
+        uniforms={{ uColor: { value: new THREE.Vector3(0.05, 0.02, 0.01) } }} // Very dark brownish-black
         transparent={true}
         side={THREE.DoubleSide} 
         depthWrite={false}
