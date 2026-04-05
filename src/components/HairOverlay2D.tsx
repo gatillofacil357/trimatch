@@ -28,8 +28,6 @@ const ASSETS: Record<string, { front: string, side?: string, back?: string }> = 
 export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  
-  const [assetStatus, setAssetStatus] = useState<'LOADING' | 'VALID' | 'INVALID'>('LOADING');
 
   // EMA Smoothing State
   const stateRef = useRef({
@@ -38,33 +36,10 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
     initialized: false
   });
 
-  // 1 & 2. FILTRADO Y VALIDACIÓN DE TRANSPARENCIA
-  useEffect(() => {
-    setAssetStatus('LOADING');
-    
-    // SOLO MODO AR: usar exclusivamente assets.front
-    const src = ASSETS[styleId]?.front;
-    if (!src) {
-      setAssetStatus('INVALID');
-      return;
-    }
-
-    const img = new Image();
-    img.crossOrigin = "Anonymous";
-    
-    img.onload = () => {
-      setAssetStatus('VALID');
-      if (imgRef.current) imgRef.current.src = src;
-    };
-    
-    img.onerror = () => setAssetStatus('INVALID');
-    img.src = src;
-    
-  }, [styleId]);
+  const src = ASSETS[styleId]?.front;
 
   useEffect(() => {
-    // 4. BLOQUEO DE ERRORES: Si no es válido, no hacer tracking
-    if (assetStatus !== 'VALID') return;
+    if (!src) return;
 
     const smoothing = 0.35; 
 
@@ -129,10 +104,9 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
 
     const animId = requestAnimationFrame(updatePosition);
     return () => cancelAnimationFrame(animId);
-  }, [trackingRef, assetStatus]);
+  }, [trackingRef, src]);
 
-  // Si no hay imagen, o está cargando, esperar.
-  if (assetStatus === 'LOADING') return null;
+  if (!src) return null;
 
   return (
     <div 
@@ -145,14 +119,15 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
     >
       <img 
         ref={imgRef}
+        src={src}
         alt="AR Hair Frontend"
+        crossOrigin="anonymous"
         style={{
           position: 'absolute', transition: 'none', display: 'block',
           mixBlendMode: 'normal',
           WebkitMaskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
           maskImage: 'linear-gradient(to top, transparent 5%, black 25%)',
         }}
-        hidden={assetStatus === 'INVALID'}
       />
     </div>
   );
