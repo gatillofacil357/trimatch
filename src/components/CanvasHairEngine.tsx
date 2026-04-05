@@ -182,8 +182,9 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               const drawW = sr.width;
               const drawH = sr.width * aspect;
               
-              // Anchor firmly above the forehead curve
-              const yOffset = -drawH * 0.91; 
+              // Anchor firmly onto the forehead curve to close the visual black gap
+              // 0.7 draws the focal hairline downwards onto the user's physical temples
+              const yOffset = -drawH * 0.7; 
 
               ctx.translate(sr.x, sr.y);
               ctx.rotate(-sr.rotZ); 
