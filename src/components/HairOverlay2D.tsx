@@ -47,19 +47,21 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
       const { landmarks, matrix } = trackingRef.current;
       if (landmarks && landmarks.length > 0 && matrix && containerRef.current && imgRef.current) {
         // POSITION
-        const hairline = landmarks[151] || landmarks[10]; 
         const leftTemple = landmarks[234];
         const rightTemple = landmarks[454];
 
-        const targetX = hairline.x * 100;
-        const targetY = hairline.y * 100;
+        // Anchor deep inside the skull (midpoint between ears/temples) instead of forehead surface
+        // This prevents the hair from sweeping wildly when the head rotates left/right
+        const targetX = ((leftTemple.x + rightTemple.x) / 2) * 100;
+        const targetY = ((leftTemple.y + rightTemple.y) / 2) * 100;
 
         // SCALING
         const dx = rightTemple.x - leftTemple.x;
         const dy = rightTemple.y - leftTemple.y;
         const templeDist = Math.sqrt(dx * dx + dy * dy);
-        // Reduce scaling so the hair fits tighter to the skull
-        const targetWidth = templeDist * 150; 
+        
+        // Width relative to head diameter
+        const targetWidth = templeDist * 160; 
 
         // ROTATION
         const pos = new THREE.Vector3();
@@ -67,8 +69,12 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
         const scl = new THREE.Vector3();
         matrix.decompose(pos, quat, scl);
         const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
+        
         let targetRotX = euler.x; 
-        let targetRotY = euler.y; 
+        
+        // Boost the Y-rotation geometrically so 2D turns feel more reactive
+        let targetRotY = euler.y * 1.5; 
+        
         let targetRotZ = euler.z;
 
         // EMA SMOOTHING
@@ -99,7 +105,7 @@ export default function HairOverlay2D({ styleId, trackingRef }: HairOverlay2DPro
         const degZ = -sr.rotZ * (180 / Math.PI);
 
         // Lower the Y translation from -75% to -50% to pull the hair down over the forehead
-        imgRef.current.style.transform = `translate(-50%, -50%) perspective(600px) rotateY(${degY}deg) rotateX(${degX}deg) rotateZ(${degZ}deg)`;
+        imgRef.current.style.transform = `translate(-50%, -85%) perspective(600px) rotateY(${degY}deg) rotateX(${degX}deg) rotateZ(${degZ}deg)`;
       }
       requestAnimationFrame(updatePosition);
     };
