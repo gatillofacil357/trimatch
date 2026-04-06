@@ -169,7 +169,7 @@ function TryOnStudioContent() {
           <ambientLight intensity={1.5} />
           <directionalLight position={[0, 50, 100]} intensity={2.5} />
           
-          <FaceOccluder webcamRef={dummyWebcamRef} trackingRef={trackingRef} />
+          <FaceOccluder webcamRef={dummyWebcamRef} trackingRef={trackingRef} mirrored={true} />
         </Canvas>
       </div>
     );

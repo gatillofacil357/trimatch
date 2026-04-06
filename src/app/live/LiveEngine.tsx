@@ -5,11 +5,14 @@ import Webcam from 'react-webcam';
 import * as THREE from 'three';
 
 // Components
-import CanvasHairEngine from '@/components/CanvasHairEngine';
+import HairOverlay2D from '@/components/HairOverlay2D';
+import FaceOccluder from '@/components/FaceOccluder';
+import BeardFilter from '@/components/BeardFilter';
+import { Canvas } from '@react-three/fiber';
+import { OrthographicCamera } from '@react-three/drei';
 
 // Hooks & Utils
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
-import { useHairSegmenter } from '@/hooks/useHairSegmenter';
 import { analyzeFaceShape, AnalysisResult } from '@/utils/FaceShapeAnalyzer';
 import styles from './page.module.css';
 
@@ -27,8 +30,8 @@ const COLORS = [
 
 export default function LiveEngine() {
   const webcamRef = useRef<Webcam>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { faceLandmarker, loading: flLoading } = useFaceLandmarker();
-  const { imageSegmenter, loading: segLoading } = useHairSegmenter();
   
   const [activeStyle, setActiveStyle] = useState(HAIRSTYLES[0].id);
   const [activeColor, setActiveColor] = useState(COLORS[0].hex);
@@ -44,13 +47,8 @@ export default function LiveEngine() {
     lastUpdateTime: 0
   });
 
-  const segmentationRef = useRef<{
-    mask: Uint8Array | null,
-    width: number,
-    height: number
-  }>({ mask: null, width: 0, height: 0 });
-
   const [mpInitialized, setMpInitialized] = useState(false);
+  const dummyWebcamRef = useRef<any>(null); // For FaceOccluder strict typing
 
   useEffect(() => {
     if (!faceLandmarker || !webcamRef.current) return;
@@ -66,32 +64,20 @@ export default function LiveEngine() {
         const results = faceLandmarker.detectForVideo(video, time);
         if (results.faceLandmarks && results.faceLandmarks.length > 0) {
           trackingRef.current.landmarks = results.faceLandmarks[0];
+          
           if (results.facialTransformationMatrixes?.[0]) {
             trackingRef.current.matrix = new THREE.Matrix4().fromArray(results.facialTransformationMatrixes[0].data);
+          } else {
+            trackingRef.current.matrix = new THREE.Matrix4().identity();
           }
           
-          // 2. SEGMENTATION (v9.3 Tasks-Vision Native)
-          if (imageSegmenter) {
-            imageSegmenter.segmentForVideo(video, time, (result) => {
-               const mask = result.categoryMask;
-               if (mask) {
-                  // Direct Uint8Array output from fast Tasks API
-                  // Contains 0 for background, >0 for person/objects
-                  segmentationRef.current = {
-                    mask: mask.getAsUint8Array(), // Native array casting
-                    width: mask.width,
-                    height: mask.height
-                  };
-               }
-            });
+          // VIEWPORT (Use pixels to match FaceOccluder logic in TryOnStudio)
+          if (containerRef.current) {
+            trackingRef.current.viewport = {
+              vWidth: containerRef.current.clientWidth,
+              vHeight: containerRef.current.clientHeight
+            };
           }
-
-          // VIEWPORT
-          const videoAspectRatio = video.videoWidth / video.videoHeight;
-          trackingRef.current.viewport = {
-            vWidth: 5.0 * videoAspectRatio,
-            vHeight: 5.0
-          };
 
           if (!mpInitialized) setMpInitialized(true);
         }
@@ -107,7 +93,7 @@ export default function LiveEngine() {
 
     renderLoop();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [faceLandmarker, imageSegmenter, performanceMode, mpInitialized]);
+  }, [faceLandmarker, performanceMode, mpInitialized]);
 
   const handleCapture = async () => {
     if (!webcamRef.current || !webcamRef.current.video) return;
@@ -124,7 +110,7 @@ export default function LiveEngine() {
     setIsCapturing(false);
   };
 
-  const isLoading = flLoading || segLoading;
+  const isLoading = flLoading;
 
   return (
     <div className={styles.container}>
@@ -135,13 +121,14 @@ export default function LiveEngine() {
           </div>
       )}
 
-      <div className={styles.cameraWrapper}>
-        <div className={styles.versionBadge}>AR Engine v9.1 ✅</div>
+      <div className={styles.cameraWrapper} ref={containerRef}>
+        <div className={styles.versionBadge}>AR Engine v9.4 (Full Grooming) ✅</div>
         <Webcam 
           ref={webcamRef}
-          mirrored={true} 
+          mirrored={false} 
           audio={false}
           className={styles.webcam}
+          style={{ opacity: 0, pointerEvents: 'none', position: 'absolute' }}
           videoConstraints={{ facingMode: "user" }}
         />
         
@@ -153,13 +140,29 @@ export default function LiveEngine() {
 
         {mpInitialized && (
           <>
-            {/* PURE 2D PIPELINE: ERASES HAIR AND COMPOSITES NEW STYLES NATIVELY */}
-            <CanvasHairEngine 
-               webcamRef={webcamRef} 
-               trackingRef={trackingRef} 
-               segmentationRef={segmentationRef} 
-               activeStyle={activeStyle}
+            {/* 1. COMPONENT: 2D Hair Layer (High Detail) */}
+            <HairOverlay2D 
+               styleId={activeStyle} 
+               trackingRef={trackingRef as any} 
             />
+
+            {/* 2. COMPONENT: 3D Occlusion Layer (Bald Cap) */}
+            <div className={styles.canvasContainer}>
+              <Canvas>
+                <OrthographicCamera makeDefault position={[0, 0, 100]} zoom={1} />
+                <ambientLight intensity={1.5} />
+                <FaceOccluder 
+                  webcamRef={webcamRef} 
+                  trackingRef={trackingRef as any} 
+                  mirrored={false}
+                />
+                <BeardFilter
+                  webcamRef={webcamRef}
+                  trackingRef={trackingRef as any}
+                  mirrored={false}
+                />
+              </Canvas>
+            </div>
           </>
         )}
       </div>

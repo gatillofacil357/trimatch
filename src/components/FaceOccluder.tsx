@@ -13,9 +13,10 @@ interface FaceOccluderProps {
     viewport: { vWidth: number, vHeight: number },
     lastUpdateTime: number
   }>;
+  mirrored?: boolean;
 }
 
-export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderProps) {
+export default function FaceOccluder({ webcamRef, trackingRef, mirrored = false }: FaceOccluderProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -57,8 +58,8 @@ export default function FaceOccluder({ webcamRef, trackingRef }: FaceOccluderPro
             lp.z -= 0.05; // Pull back slightly
         }
 
-        // MIRRORING: Flip X axis (0.5 - x)
-        const x = (0.5 - lp.x) * viewport.vWidth;
+        // MIRRORING: If true, flip X axis (0.5 - x). If false, keep (x - 0.5) for CSS-flipped wrapper.
+        const x = (mirrored ? (0.5 - lp.x) : (lp.x - 0.5)) * viewport.vWidth;
         const y = -(lp.y - 0.5) * viewport.vHeight;
         const z = -lp.z * 5.0; 
         

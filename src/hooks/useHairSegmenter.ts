@@ -25,14 +25,14 @@ export const useHairSegmenter = () => {
                 );
             }
 
-            // Successfully discovered the true Selfie model URL format (.tflite) avoids 404
+            // Discovered the ultimate Hair Segmentation model directly on MediaPipe CDN exactly replacing the PyTorch model
             globalImageSegmenter = await ImageSegmenter.createFromOptions(globalFilesetResolver, {
                 baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite"
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite"
                 },
                 runningMode: "VIDEO",
-                outputCategoryMask: true,
-                outputConfidenceMasks: false
+                outputCategoryMask: false,
+                outputConfidenceMasks: true
             });
 
             setImageSegmenter(globalImageSegmenter);

@@ -15,12 +15,13 @@ interface CanvasHairEngineProps {
     landmarks: any[],
     matrix: THREE.Matrix4 | null
   }>;
-  segmentationRef: React.RefObject<{ mask: Uint8Array | null, width: number, height: number }>;
+  segmentationRef: React.RefObject<{ mask: Float32Array | null, width: number, height: number }>;
   activeStyle: string;
 }
 
 export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle }: CanvasHairEngineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
@@ -48,8 +49,16 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     if (!imagesLoaded || !canvasRef.current || !webcamRef.current) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false }); // Opaque for performance
     if (!ctx) return;
+
+    // Persistent Mask Canvas to avoid GC thrashing
+    if (!maskCanvasRef.current) {
+        maskCanvasRef.current = document.createElement('canvas');
+    }
+    const maskCanvas = maskCanvasRef.current;
+    const mCtx = maskCanvas.getContext('2d');
+    let maskImageData: ImageData | null = null;
 
     let animId: number;
 
@@ -65,14 +74,11 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         const w = canvas.width;
         const h = canvas.height;
 
-        ctx.clearRect(0, 0, w, h);
         ctx.save();
-        
-        ctx.translate(w, 0);
-        ctx.scale(-1, 1);
+        // Mirroring is handled by the CSS (.cameraWrapper { transform: scaleX(-1) })
+        // Drawing normally on the canvas will match the mirrored video.
 
-        // 1. Draw the Video Feed (Background + Person)
-        ctx.globalCompositeOperation = 'source-over';
+        // 1. Draw Raw Video
         ctx.drawImage(video, 0, 0, w, h);
 
         if (landmarks && landmarks.length > 0) {
@@ -80,72 +86,44 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const rightTemple = landmarks[454];
           const topForehead = landmarks[10];
 
-          // We build the physical isolation mask
+          // 2. SOFT ERASURE (Using Confidence Mask)
           const seg = segmentationRef.current;
           if (seg && seg.mask && seg.width > 0 && seg.height > 0) {
-              const segCanvas = document.createElement('canvas');
-              segCanvas.width = seg.width;
-              segCanvas.height = seg.height;
-              const sCtx = segCanvas.getContext('2d');
-              
-              if (sCtx) {
-                  // A. Create ImageData where the person is solid white, background is transparent
-                  const imgData = new ImageData(seg.width, seg.height);
-                  for (let i = 0; i < seg.mask.length; i++) {
-                      // mask > 0 implies Person class
-                      const isPerson = seg.mask[i] > 0;
-                      imgData.data[i * 4 + 0] = 255;
-                      imgData.data[i * 4 + 1] = 255;
-                      imgData.data[i * 4 + 2] = 255;
-                      imgData.data[i * 4 + 3] = isPerson ? 255 : 0; 
+              if (maskCanvas.width !== seg.width) {
+                  maskCanvas.width = seg.width;
+                  maskCanvas.height = seg.height;
+                  maskImageData = mCtx!.createImageData(seg.width, seg.height);
+              }
+
+              if (maskImageData) {
+                  const data = maskImageData.data;
+                  const mask = seg.mask;
+                  for (let i = 0; i < mask.length; i++) {
+                      const alpha = mask[i]; // 0 to 1
+                      const idx = i * 4;
+                      data[idx + 0] = 0; // Black hole
+                      data[idx + 1] = 0;
+                      data[idx + 2] = 0;
+                      // Confidence mask values: 1.0 = definitely hair (erase), 0.0 = skin/bg (keep)
+                      data[idx + 3] = Math.floor(alpha * 255); 
                   }
-                  sCtx.putImageData(imgData, 0, 0);
+                  mCtx!.putImageData(maskImageData, 0, 0);
 
-                  // B. We ONLY want to erase the hair (top of head). 
-                  // So we intersect the Selfie Mask with an Upper-Head Polygon!
-                  // We draw a bounding box that ONLY covers the top of the monitor down to the forehead.
-                  sCtx.globalCompositeOperation = 'destination-in';
-                  
-                  sCtx.save();
-                  // No mirroring! Seg map and landmarks are perfectly aligned natively.
-                  
-                  sCtx.beginPath();
-                  sCtx.moveTo(0, 0); // Top-left (user physical right)
-                  sCtx.lineTo(0, rightTemple.y * seg.height);
-                  sCtx.lineTo(rightTemple.x * seg.width, rightTemple.y * seg.height);
-                  
-                  // Smooth Bezier Curve across the forehead from Right Temple to Left Temple
-                  const midY = (leftTemple.y + rightTemple.y) / 2;
-                  const cpY = 2 * topForehead.y - midY;
-                  sCtx.quadraticCurveTo(topForehead.x * seg.width, cpY * seg.height, leftTemple.x * seg.width, leftTemple.y * seg.height);
-                  
-                  sCtx.lineTo(seg.width, leftTemple.y * seg.height); // To Top-right (user physical left)
-                  sCtx.lineTo(seg.width, 0); // Up to corner
-                  sCtx.closePath();
-                  sCtx.fill();
-                  sCtx.restore();
-
-                  // segCanvas now EXACTLY equals the user's physical hair silhouette!
-                  // C. Erase the hair silhouette from the LIVE VIDEO
+                  // Apply the mask as "destination-out" to erase specifically the hair
                   ctx.globalCompositeOperation = 'destination-out';
-                  ctx.filter = 'blur(4px)'; // Soft blend the erased hole
-                  ctx.drawImage(segCanvas, 0, 0, w, h);
-                  ctx.filter = 'none';
+                  ctx.drawImage(maskCanvas, 0, 0, w, h);
+                  ctx.globalCompositeOperation = 'source-over';
               }
           }
 
-          // 3. DRAW New Hairstyle PNG over the erased hole
-          ctx.globalCompositeOperation = 'source-over';
-          
+          // 3. DRAW Virtual Hair
           const anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
           const anchorY = topForehead.y * h;
           
           const dx = (rightTemple.x - leftTemple.x) * w;
           const dy = (rightTemple.y - leftTemple.y) * h;
           const headWidthPx = Math.sqrt(dx*dx + dy*dy);
-          
-          // Scale it to fully cover the erased hair hole
-          const targetW = headWidthPx * 1.5;
+          const targetW = headWidthPx * 1.55;
 
           let targetRotZ = 0;
           let targetRotY = 0;
@@ -159,14 +137,12 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              targetRotY = euler.y; // Yaw
           }
 
+          // Smooth tracking
           const sr = stateRef.current;
-          const s = 0.35;
+          const s = 0.4; // Slightly faster for responsiveness
           if (!sr.init) {
-             sr.x = anchorX;
-             sr.y = anchorY;
-             sr.width = targetW;
-             sr.rotZ = targetRotZ;
-             sr.rotY = targetRotY;
+             sr.x = anchorX; sr.y = anchorY; sr.width = targetW;
+             sr.rotZ = targetRotZ; sr.rotY = targetRotY;
              sr.init = true;
           } else {
              sr.x += (anchorX - sr.x) * s;
@@ -182,21 +158,22 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               const drawW = sr.width;
               const drawH = sr.width * aspect;
               
-              // Anchor firmly onto the forehead curve to close the visual black gap
-              // 0.7 draws the focal hairline downwards onto the user's physical temples
-              const yOffset = -drawH * 0.7; 
+              const yOffset = -drawH * 0.72; // Adjusted for better scalp fit
 
               ctx.translate(sr.x, sr.y);
               ctx.rotate(-sr.rotZ); 
               
-              // Apply Yaw squish perspective
               const yawSquish = Math.cos(sr.rotY);
               ctx.scale(yawSquish, 1.0);
               
-              // Subtle physical shadowing to ground the hair to the scalp
-              ctx.filter = `drop-shadow(0px 8px 6px rgba(0,0,0,0.6)) grayscale(0.9)`;
+              // Soft landing shadow for realism
+              ctx.shadowColor = 'rgba(0,0,0,0.5)';
+              ctx.shadowBlur = 10;
+              ctx.shadowOffsetY = 5;
+
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
-              ctx.filter = 'none';
+              
+              ctx.shadowColor = 'transparent'; // Cleanup
           }
         }
         
@@ -215,10 +192,8 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
       ref={canvasRef} 
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
+        top: 0, left: 0,
+        width: '100%', height: '100%',
         zIndex: 20,
         pointerEvents: 'none'
       }}

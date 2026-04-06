@@ -13,9 +13,10 @@ interface BeardFilterProps {
     viewport: { vWidth: number, vHeight: number },
     lastUpdateTime: number
   }>;
+  mirrored?: boolean;
 }
 
-export default function BeardFilter({ webcamRef, trackingRef }: BeardFilterProps) {
+export default function BeardFilter({ webcamRef, trackingRef, mirrored = false }: BeardFilterProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
@@ -42,8 +43,8 @@ export default function BeardFilter({ webcamRef, trackingRef }: BeardFilterProps
       for (let i = 0; i < landmarks.length; i++) {
         let lp = landmarks[i];
         
-        // MIRRORING: Flip X axis (0.5 - x) like we do for video feed alignment
-        const x = (0.5 - lp.x) * viewport.vWidth;
+        // MIRRORING: If true, flip X axis (0.5 - x). If false, keep (x - 0.5) for CSS-flipped wrapper.
+        const x = (mirrored ? (0.5 - lp.x) : (lp.x - 0.5)) * viewport.vWidth;
         const y = -(lp.y - 0.5) * viewport.vHeight;
         const z = -lp.z * 5.0; 
         
