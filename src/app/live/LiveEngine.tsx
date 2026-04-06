@@ -11,6 +11,7 @@ import { OrthographicCamera } from '@react-three/drei';
 
 // Hooks & Utils
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
+import { useHairSegmenter } from '@/hooks/useHairSegmenter';
 import { analyzeFaceShape, AnalysisResult } from '@/utils/FaceShapeAnalyzer';
 import styles from './page.module.css';
 
@@ -30,6 +31,7 @@ export default function LiveEngine() {
   const webcamRef = useRef<Webcam>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { faceLandmarker, loading: flLoading } = useFaceLandmarker();
+  const { imageSegmenter, loading: segLoading } = useHairSegmenter();
   
   const [activeStyle, setActiveStyle] = useState(HAIRSTYLES[0].id);
   const [activeColor, setActiveColor] = useState(COLORS[0].hex);
@@ -45,11 +47,15 @@ export default function LiveEngine() {
     lastUpdateTime: 0
   });
 
+  const segmentationRef = useRef<{ mask: Float32Array | null, width: number, height: number }>({
+    mask: null, width: 0, height: 0
+  });
+
   const [mpInitialized, setMpInitialized] = useState(false);
   const dummyWebcamRef = useRef<any>(null); // For FaceOccluder strict typing
 
   useEffect(() => {
-    if (!faceLandmarker || !webcamRef.current) return;
+    if (!faceLandmarker || !imageSegmenter || !webcamRef.current) return;
 
     let animationFrameId: number;
     const video = webcamRef.current.video!;
@@ -79,6 +85,20 @@ export default function LiveEngine() {
 
           if (!mpInitialized) setMpInitialized(true);
         }
+
+        // 2. SEGMENTATION (Disabled in Phase 3 for stability)
+        /*
+        imageSegmenter.segmentForVideo(video, time, (result) => {
+            if (result.confidenceMasks) {
+                const mask = result.confidenceMasks[0].getAsFloat32Array();
+                segmentationRef.current = {
+                    mask,
+                    width: result.confidenceMasks[0].width,
+                    height: result.confidenceMasks[0].height
+                };
+            }
+        });
+        */
       }
       
       const delay = performanceMode ? 1000 / 15 : 0;
@@ -108,7 +128,7 @@ export default function LiveEngine() {
     setIsCapturing(false);
   };
 
-  const isLoading = flLoading;
+  const isLoading = flLoading || segLoading;
 
   return (
     <div className={styles.container}>
@@ -141,7 +161,6 @@ export default function LiveEngine() {
             webcamRef={webcamRef}
             trackingRef={trackingRef}
             activeStyle={activeStyle}
-            segmentationRef={{ current: { mask: null, width: 0, height: 0 } } as any}
           />
         )}
       </div>

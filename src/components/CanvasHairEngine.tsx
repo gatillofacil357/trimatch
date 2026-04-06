@@ -15,14 +15,12 @@ interface CanvasHairEngineProps {
     landmarks: any[],
     matrix: THREE.Matrix4 | null
   }>;
-  segmentationRef: React.RefObject<{ mask: Float32Array | null, width: number, height: number }>;
   activeStyle: string;
   mirrored?: boolean;
 }
 
-export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle, mirrored = false }: CanvasHairEngineProps) {
+export default function CanvasHairEngine({ webcamRef, trackingRef, activeStyle, mirrored = false }: CanvasHairEngineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
@@ -32,6 +30,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     init: false
   });
 
+  // Load assets
   useEffect(() => {
     let loadedCount = 0;
     const keys = Object.keys(ASSETS);
@@ -50,27 +49,19 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     if (!imagesLoaded || !canvasRef.current || !webcamRef.current) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { alpha: false }); // Opaque for performance
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
-
-    // Persistent Mask Canvas to avoid GC thrashing
-    if (!maskCanvasRef.current) {
-        maskCanvasRef.current = document.createElement('canvas');
-    }
-    const maskCanvas = maskCanvasRef.current;
-    const mCtx = maskCanvas.getContext('2d');
-    let maskImageData: ImageData | null = null;
 
     let animId: number;
 
     const render = () => {
-      // Source can be the webcam video or a static image (for Studio)
+      // Source is the webcam video
       const source = webcamRef.current?.video || webcamRef.current; 
       if (source && (source.readyState >= 2 || (source instanceof HTMLImageElement && source.complete))) {
         const srcW = (source as HTMLVideoElement).videoWidth || (source as HTMLImageElement).naturalWidth;
         const srcH = (source as HTMLVideoElement).videoHeight || (source as HTMLImageElement).naturalHeight;
         
-        // 1:1 Resolution matching as requested
+        // Phase 1: Match resolution exactly
         if (canvas.width !== srcW || canvas.height !== srcH) {
           canvas.width = srcW;
           canvas.height = srcH;
@@ -80,63 +71,38 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         const w = canvas.width;
         const h = canvas.height;
 
-        // 1. CLEAR Canvas
+        // Phase 1: Clear and Draw Video FIRST
         ctx.clearRect(0, 0, w, h);
-
-        ctx.save();
         
-        // 2. DRAW Video Base
+        ctx.save();
+        if (mirrored) {
+          ctx.translate(w, 0);
+          ctx.scale(-1, 1);
+        }
         ctx.drawImage(source, 0, 0, w, h);
+        ctx.restore();
 
-        if (landmarks && landmarks.length > 0) {
+        // Phase 2: Correct Face Anchoring
+        if (landmarks && landmarks.length > 400) {
+          const topForehead = landmarks[10]; // Top of forehead
           const leftTemple = landmarks[234];
           const rightTemple = landmarks[454];
-          const topForehead = landmarks[10];
 
-          // 2. SOFT ERASURE (Using Confidence Mask)
-          const seg = segmentationRef.current;
-          if (seg && seg.mask && seg.width > 0 && seg.height > 0) {
-              if (maskCanvas.width !== seg.width) {
-                  maskCanvas.width = seg.width;
-                  maskCanvas.height = seg.height;
-                  maskImageData = mCtx!.createImageData(seg.width, seg.height);
-              }
+          // Compute width and center based on temples (in pixels)
+          const lx = leftTemple.x * w;
+          const ly = leftTemple.y * h;
+          const rx = rightTemple.x * w;
+          const ry = rightTemple.y * h;
 
-              if (maskImageData) {
-                  const data = maskImageData.data;
-                  const mask = seg.mask;
-                  for (let i = 0; i < mask.length; i++) {
-                      const alpha = mask[i]; // 0 to 1
-                      const idx = i * 4;
-                      data[idx + 0] = 0; // Black hole
-                      data[idx + 1] = 0;
-                      data[idx + 2] = 0;
-                      // Confidence mask values: 1.0 = definitely hair (erase), 0.0 = skin/bg (keep)
-                      data[idx + 3] = Math.floor(alpha * 255); 
-                  }
-                  mCtx!.putImageData(maskImageData, 0, 0);
-
-                  // Apply the mask as "destination-out" to erase specifically the hair
-                  ctx.globalCompositeOperation = 'destination-out';
-                  ctx.drawImage(maskCanvas, 0, 0, w, h);
-                  ctx.globalCompositeOperation = 'source-over';
-              }
-          }
-
-          // 3. DRAW Virtual Hair
-          let anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
-          const anchorY = topForehead.y * h;
-
-          // MIRRORING: If true, flip the anchor X coordinate (w - x)
-          if (mirrored) {
-             anchorX = w - anchorX;
-          }
+          const dx = rx - lx;
+          const dy = ry - ly;
+          const headWidthPx = Math.sqrt(dx * dx + dy * dy);
           
-          const dx = (rightTemple.x - leftTemple.x) * w;
-          const dy = (rightTemple.y - leftTemple.y) * h;
-          const headWidthPx = Math.sqrt(dx*dx + dy*dy);
-          const targetW = headWidthPx * 1.55;
+          // Center between temples
+          const centerX = (lx + rx) / 2;
+          const centerY = topForehead.y * h; // Anchor at forehead landmark
 
+          // Rotation from matrix
           let targetRotZ = 0;
           let targetRotY = 0;
           if (matrix) {
@@ -149,28 +115,39 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              targetRotY = euler.y; // Yaw
           }
 
-          // Smooth tracking
+          // Smooth tracking (Phased smoothing)
           const sr = stateRef.current;
-          const s = 0.4; // Slightly faster for responsiveness
+          const s = 0.35; 
           if (!sr.init) {
-             sr.x = anchorX; sr.y = anchorY; sr.width = targetW;
+             sr.x = centerX; sr.y = centerY; sr.width = headWidthPx;
              sr.rotZ = targetRotZ; sr.rotY = targetRotY;
              sr.init = true;
           } else {
-             sr.x += (anchorX - sr.x) * s;
-             sr.y += (anchorY - sr.y) * s;
-             sr.width += (targetW - sr.width) * s;
+             sr.x += (centerX - sr.x) * s;
+             sr.y += (centerY - sr.y) * s;
+             sr.width += (headWidthPx - sr.width) * s;
              sr.rotZ += (targetRotZ - sr.rotZ) * s;
              sr.rotY += (targetRotY - sr.rotY) * s;
           }
 
+          // Phase 3: Basic Overlay (No segmentation/shadows)
           const hairImg = imagesRef.current[activeStyle];
           if (hairImg) {
               const aspect = hairImg.height / hairImg.width;
-              const drawW = sr.width;
-              const drawH = sr.width * aspect;
+              // Scaling factor (1.55x headWidth for natural coverage)
+              const drawW = sr.width * 1.55;
+              const drawH = drawW * aspect;
               
-              const yOffset = -drawH * 0.72; // Adjusted for better scalp fit
+              // Anatomical offset (Anchor hair slightly ABOVE forehead)
+              const yOffset = -drawH * 0.75; 
+
+              ctx.save();
+              // If mirrored, we need to handle coordinates correctly
+              // The drawImage source was mirrored, let's keep hair consistent 
+              if (mirrored) {
+                  ctx.translate(w, 0);
+                  ctx.scale(-1, 1);
+              }
 
               ctx.translate(sr.x, sr.y);
               ctx.rotate(-sr.rotZ); 
@@ -178,18 +155,10 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               const yawSquish = Math.cos(sr.rotY);
               ctx.scale(yawSquish, 1.0);
               
-              // Soft landing shadow for realism
-              ctx.shadowColor = 'rgba(0,0,0,0.5)';
-              ctx.shadowBlur = 10;
-              ctx.shadowOffsetY = 5;
-
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
-              
-              ctx.shadowColor = 'transparent'; // Cleanup
+              ctx.restore();
           }
         }
-        
-        ctx.restore();
       }
       
       animId = requestAnimationFrame(render);
@@ -197,11 +166,12 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
 
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [trackingRef, activeStyle, imagesLoaded]);
+  }, [trackingRef, activeStyle, imagesLoaded, mirrored]);
 
   return (
     <canvas 
       ref={canvasRef} 
+      className="ar-pipeline-canvas"
       style={{
         position: 'absolute',
         top: 0, left: 0,
