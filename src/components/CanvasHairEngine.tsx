@@ -17,9 +17,10 @@ interface CanvasHairEngineProps {
   }>;
   segmentationRef: React.RefObject<{ mask: Float32Array | null, width: number, height: number }>;
   activeStyle: string;
+  mirrored?: boolean;
 }
 
-export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle }: CanvasHairEngineProps) {
+export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle, mirrored = false }: CanvasHairEngineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
@@ -63,12 +64,16 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     let animId: number;
 
     const render = () => {
-      const video = webcamRef.current.video;
-      if (video && video.readyState >= 2) {
+      // Source can be the webcam video or a static image (for Studio)
+      const source = webcamRef.current?.video || webcamRef.current; 
+      if (source && (source.readyState >= 2 || (source instanceof HTMLImageElement && source.complete))) {
+        const srcW = (source as HTMLVideoElement).videoWidth || (source as HTMLImageElement).naturalWidth;
+        const srcH = (source as HTMLVideoElement).videoHeight || (source as HTMLImageElement).naturalHeight;
+        
         // 1:1 Resolution matching as requested
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+        if (canvas.width !== srcW || canvas.height !== srcH) {
+          canvas.width = srcW;
+          canvas.height = srcH;
         }
 
         const { landmarks, matrix } = trackingRef.current;
@@ -81,7 +86,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         ctx.save();
         
         // 2. DRAW Video Base
-        ctx.drawImage(video, 0, 0, w, h);
+        ctx.drawImage(source, 0, 0, w, h);
 
         if (landmarks && landmarks.length > 0) {
           const leftTemple = landmarks[234];
@@ -119,8 +124,13 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           }
 
           // 3. DRAW Virtual Hair
-          const anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
+          let anchorX = ((leftTemple.x + rightTemple.x) / 2) * w;
           const anchorY = topForehead.y * h;
+
+          // MIRRORING: If true, flip the anchor X coordinate (w - x)
+          if (mirrored) {
+             anchorX = w - anchorX;
+          }
           
           const dx = (rightTemple.x - leftTemple.x) * w;
           const dy = (rightTemple.y - leftTemple.y) * h;

@@ -6,8 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Canvas } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 import * as THREE from 'three';
-import HairOverlay2D from '@/components/HairOverlay2D';
-import FaceOccluder from '@/components/FaceOccluder';
+import CanvasHairEngine from '@/components/CanvasHairEngine';
 import StyleSearch from '@/components/StyleSearch';
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
 import { analyzeFaceShape, AnalysisResult, FaceMetrics, saveAnalysis, getStoredAnalysis } from '@/utils/FaceShapeAnalyzer';
@@ -157,20 +156,13 @@ function TryOnStudioContent() {
     
     return (
       <div className={styles.canvasOverlay}>
-        {/* 1. LAYER: 2D OVERLAY (Photo-Realism) */}
-        <HairOverlay2D 
-          styleId={activeStyle} 
-          trackingRef={trackingRef} 
+        <CanvasHairEngine
+          webcamRef={imgRef as any}
+          trackingRef={trackingRef}
+          activeStyle={activeStyle}
+          segmentationRef={{ current: { mask: null, width: 0, height: 0 } } as any}
+          mirrored={false}
         />
-
-        {/* 2. LAYER: Background & Occlusion (3D Engine) */}
-        <Canvas>
-          <OrthographicCamera makeDefault position={[0, 0, 100]} zoom={1} />
-          <ambientLight intensity={1.5} />
-          <directionalLight position={[0, 50, 100]} intensity={2.5} />
-          
-          <FaceOccluder webcamRef={dummyWebcamRef} trackingRef={trackingRef} mirrored={true} />
-        </Canvas>
       </div>
     );
   };
@@ -184,6 +176,7 @@ function TryOnStudioContent() {
             src={imageSrc} 
             alt="Tu foto" 
             className={styles.userImage} 
+            style={{ opacity: 0 }}
             crossOrigin="anonymous"
           />
         )}
