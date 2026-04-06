@@ -214,8 +214,8 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const hairImg = imagesRef.current[activeStyle];
           if (hairImg) {
               const aspect = hairImg.height / hairImg.width;
-              // Precise Coverage Constant (1.62x)
-              const drawW = sr.width * 1.62; 
+              // User-defined Scale Constant (2.2x)
+              const drawW = sr.width * 2.2; 
               const drawH = drawW * aspect;
               const yOffset = -drawH * 0.35; // Positioned relative to finalY (top of head)
 
