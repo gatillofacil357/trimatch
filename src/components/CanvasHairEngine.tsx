@@ -27,6 +27,7 @@ interface CanvasHairEngineProps {
 export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle, mirrored = false }: CanvasHairEngineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
@@ -48,6 +49,10 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         loadedCount++;
         if (loadedCount === keys.length) setImagesLoaded(true);
       };
+      img.onerror = () => {
+          console.error(`Failed to load hair asset: ${key} at ${ASSETS[key]}`);
+          loadedCount++; // Avoid blocking if one fails
+      };
     });
   }, []);
 
@@ -58,12 +63,14 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    // Create mask canvas offscreen
-    if (!maskCanvasRef.current) {
-        maskCanvasRef.current = document.createElement('canvas');
-    }
+    // Persistent utility canvases
+    if (!maskCanvasRef.current) maskCanvasRef.current = document.createElement('canvas');
+    if (!tempCanvasRef.current) tempCanvasRef.current = document.createElement('canvas');
+    
     const maskCanvas = maskCanvasRef.current;
     const maskCtx = maskCanvas.getContext('2d');
+    const tempCanvas = tempCanvasRef.current;
+    const tempCtx = tempCanvas.getContext('2d');
 
     let animId: number;
 
@@ -73,6 +80,11 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         const srcW = (source as HTMLVideoElement).videoWidth || (source as HTMLImageElement).naturalWidth;
         const srcH = (source as HTMLVideoElement).videoHeight || (source as HTMLImageElement).naturalHeight;
         
+        if (srcW === 0 || srcH === 0) {
+            animId = requestAnimationFrame(render);
+            return;
+        }
+
         if (canvas.width !== srcW || canvas.height !== srcH) {
           canvas.width = srcW;
           canvas.height = srcH;
@@ -85,6 +97,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         const h = canvas.height;
 
         // 1. Draw Background Video
+        ctx.clearRect(0, 0, w, h);
         ctx.save();
         if (mirrored) {
           ctx.translate(w, 0);
@@ -93,24 +106,26 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         ctx.drawImage(source, 0, 0, w, h);
         ctx.restore();
 
-        // 2. Hair Erasure (v10.0 Realism)
+        // 2. Hair Erasure (Only if landmarks exist to ensure we can "replace" the erased part)
+        const hasLandmarks = landmarks && landmarks.length > 400;
         const seg = segmentationRef?.current;
-        if (seg && seg.mask && maskCtx) {
-            // Draw mask to maskCanvas
-            const maskData = maskCtx.createImageData(seg.width, seg.height);
+        
+        if (hasLandmarks && seg && seg.mask && maskCtx && tempCtx) {
+            if (tempCanvas.width !== seg.width || tempCanvas.height !== seg.height) {
+                tempCanvas.width = seg.width;
+                tempCanvas.height = seg.height;
+            }
+
+            const maskData = tempCtx.createImageData(seg.width, seg.height);
             for (let i = 0; i < seg.mask.length; i++) {
                 const val = seg.mask[i] * 255;
-                maskData.data[i * 4] = 0;
-                maskData.data[i * 4 + 1] = 0;
-                maskData.data[i * 4 + 2] = 0;
-                maskData.data[i * 4 + 3] = val; // Alpha channel is the mask
+                const idx = i * 4;
+                maskData.data[idx] = 0;
+                maskData.data[idx + 1] = 0;
+                maskData.data[idx + 2] = 0;
+                maskData.data[idx + 3] = val; 
             }
-            
-            // Temporary canvas for mask processing
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = seg.width;
-            tempCanvas.height = seg.height;
-            tempCanvas.getContext('2d')?.putImageData(maskData, 0, 0);
+            tempCtx.putImageData(maskData, 0, 0);
 
             maskCtx.clearRect(0, 0, w, h);
             maskCtx.save();
@@ -121,7 +136,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
             maskCtx.drawImage(tempCanvas, 0, 0, w, h);
             maskCtx.restore();
 
-            // Apply 'destination-out' to erase original hair
+            // Apply 'destination-out'
             ctx.save();
             ctx.globalCompositeOperation = 'destination-out';
             ctx.drawImage(maskCanvas, 0, 0);
@@ -129,7 +144,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         }
 
         // 3. Face Anchoring & Scalp Reconstruction
-        if (landmarks && landmarks.length > 400) {
+        if (hasLandmarks) {
           const topForehead = landmarks[10];
           const leftTemple = landmarks[234];
           const rightTemple = landmarks[454];
@@ -172,24 +187,23 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              sr.rotY += (targetRotY - sr.rotY) * s;
           }
 
-          // Scalp Reconstruction: Skin-toned base
+          // Scalp Reconstruction
           const scalpW = sr.width * 1.1;
           const scalpH = scalpW * 0.6;
+          const yawSquish = Math.cos(sr.rotY);
           
           ctx.save();
           if (mirrored) {
               ctx.translate(w, 0);
               ctx.scale(-1, 1);
           }
-          ctx.translate(sr.x, sr.y - scalpH * 0.2);
+          ctx.translate(sr.x, sr.y - scalpH * 0.15);
           ctx.rotate(-sr.rotZ);
-          const yawSquish = Math.cos(sr.rotY);
           ctx.scale(yawSquish, 1.0);
 
-          // Draw skin base
           ctx.beginPath();
           ctx.ellipse(0, 0, scalpW / 2, scalpH / 2, 0, 0, Math.PI * 2);
-          ctx.fillStyle = '#e8beac'; // Default skin tone Ref: Conversation 6737
+          ctx.fillStyle = '#e8beac'; 
           ctx.fill();
           ctx.restore();
 
@@ -197,9 +211,10 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const hairImg = imagesRef.current[activeStyle];
           if (hairImg) {
               const aspect = hairImg.height / hairImg.width;
-              const drawW = sr.width * 1.55;
+              // Slightly larger coverage (1.65x)
+              const drawW = sr.width * 1.65; 
               const drawH = drawW * aspect;
-              const yOffset = -drawH * 0.75; 
+              const yOffset = -drawH * 0.78; 
 
               ctx.save();
               if (mirrored) {
