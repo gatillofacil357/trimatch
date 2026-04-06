@@ -65,7 +65,8 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     const render = () => {
       const video = webcamRef.current.video;
       if (video && video.readyState >= 2) {
-        if (canvas.width !== video.videoWidth) {
+        // 1:1 Resolution matching as requested
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
         }
@@ -74,11 +75,12 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         const w = canvas.width;
         const h = canvas.height;
 
-        ctx.save();
-        // Mirroring is handled by the CSS (.cameraWrapper { transform: scaleX(-1) })
-        // Drawing normally on the canvas will match the mirrored video.
+        // 1. CLEAR Canvas
+        ctx.clearRect(0, 0, w, h);
 
-        // 1. Draw Raw Video
+        ctx.save();
+        
+        // 2. DRAW Video Base
         ctx.drawImage(video, 0, 0, w, h);
 
         if (landmarks && landmarks.length > 0) {

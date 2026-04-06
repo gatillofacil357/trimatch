@@ -5,9 +5,7 @@ import Webcam from 'react-webcam';
 import * as THREE from 'three';
 
 // Components
-import HairOverlay2D from '@/components/HairOverlay2D';
-import FaceOccluder from '@/components/FaceOccluder';
-import BeardFilter from '@/components/BeardFilter';
+import CanvasHairEngine from '@/components/CanvasHairEngine';
 import { Canvas } from '@react-three/fiber';
 import { OrthographicCamera } from '@react-three/drei';
 
@@ -122,13 +120,13 @@ export default function LiveEngine() {
       )}
 
       <div className={styles.cameraWrapper} ref={containerRef}>
-        <div className={styles.versionBadge}>AR Engine v9.4 (Full Grooming) ✅</div>
+        <div className={styles.versionBadge}>AR Engine v9.5 (Canvas Pro) ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={false} 
           audio={false}
           className={styles.webcam}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, opacity: 1 }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, opacity: 0, pointerEvents: 'none' }}
           videoConstraints={{ facingMode: "user" }}
         />
         
@@ -139,26 +137,12 @@ export default function LiveEngine() {
         )}
 
         {mpInitialized && (
-          <>
-            {/* 1. COMPONENT: 2D Hair Layer (High Detail) */}
-            <HairOverlay2D 
-               styleId={activeStyle} 
-               trackingRef={trackingRef as any} 
-            />
-
-            {/* 2. COMPONENT: 3D Occlusion Layer (Bald Cap) */}
-            <div className={styles.canvasContainer}>
-              <Canvas>
-                <OrthographicCamera makeDefault position={[0, 0, 100]} zoom={1} />
-                <ambientLight intensity={1.5} />
-                <FaceOccluder 
-                  webcamRef={webcamRef} 
-                  trackingRef={trackingRef as any} 
-                  mirrored={false}
-                />
-              </Canvas>
-            </div>
-          </>
+          <CanvasHairEngine
+            webcamRef={webcamRef}
+            trackingRef={trackingRef}
+            activeStyle={activeStyle}
+            segmentationRef={{ current: { mask: null, width: 0, height: 0 } } as any}
+          />
         )}
       </div>
 
