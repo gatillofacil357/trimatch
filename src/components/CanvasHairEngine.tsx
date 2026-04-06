@@ -30,7 +30,6 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
-  const skinColorRef = useRef<string>('#e8beac');
 
   const stateRef = useRef({
     x: 0, y: 0, width: 0, height: 0, 
@@ -108,27 +107,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
 
         const hasLandmarks = landmarks && landmarks.length > 400;
 
-        // 2. Skin Tone Sampling (v10.5 Photoshop Edition)
-        if (hasLandmarks) {
-            const forehead = landmarks[10];
-            const sx = Math.floor(forehead.x * w);
-            const sy = Math.floor(forehead.y * h);
-            
-            // Sample a small 5x5 area for stable color
-            try {
-                const pixelData = ctx.getImageData(sx, sy, 5, 5).data;
-                let r = 0, g = 0, b = 0;
-                for (let i = 0; i < pixelData.length; i += 4) {
-                    r += pixelData[i];
-                    g += pixelData[i + 1];
-                    b += pixelData[i + 2];
-                }
-                const count = pixelData.length / 4;
-                skinColorRef.current = `rgb(${Math.floor(r/count)}, ${Math.floor(g/count)}, ${Math.floor(b/count)})`;
-            } catch (e) { /* Fallback to default if out of bounds */ }
-        }
-
-        // 3. Feathered Hair Erasure
+        // 2. Hair Erasure (Geometric Foundation Only)
         const seg = segmentationRef?.current;
         if (hasLandmarks && seg && seg.mask && maskCtx && tempCtx) {
             if (tempCanvas.width !== seg.width || tempCanvas.height !== seg.height) {
@@ -149,10 +128,6 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
 
             maskCtx.clearRect(0, 0, w, h);
             maskCtx.save();
-            
-            // Photoshop Edge: Gaussian Blur on the mask
-            maskCtx.filter = 'blur(12px)'; 
-            
             if (mirrored) {
                 maskCtx.translate(w, 0);
                 maskCtx.scale(-1, 1);
@@ -160,31 +135,27 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
             maskCtx.drawImage(tempCanvas, 0, 0, w, h);
             maskCtx.restore();
 
-            // Apply 'destination-out' with soft edges
             ctx.save();
             ctx.globalCompositeOperation = 'destination-out';
             ctx.drawImage(maskCanvas, 0, 0);
             ctx.restore();
         }
 
-        // 4. Face Anchoring & Scalp Reconstruction
+        // 3. Perfect Geometric Anchoring & Scaling (v11.0)
         if (hasLandmarks) {
-          const topForehead = landmarks[10];
           const leftTemple = landmarks[234];
           const rightTemple = landmarks[454];
 
-          const lx = leftTemple.x * w;
-          const ly = leftTemple.y * h;
-          const rx = rightTemple.x * w;
-          const ry = rightTemple.y * h;
+          // 3.1 Stable Midpoint Anchoring
+          const centerX = (leftTemple.x + rightTemple.x) / 2 * w;
+          const centerY = (leftTemple.y + rightTemple.y) / 2 * h;
 
-          const dx = rx - lx;
-          const dy = ry - ly;
+          // 3.2 Pure Euclidean Scaling
+          const dx = (rightTemple.x - leftTemple.x) * w;
+          const dy = (rightTemple.y - leftTemple.y) * h;
           const headWidthPx = Math.sqrt(dx * dx + dy * dy);
-          
-          const centerX = (lx + rx) / 2;
-          const centerY = topForehead.y * h;
 
+          // 3.3 Precise Rotation
           let targetRotZ = 0;
           let targetRotY = 0;
           if (matrix) {
@@ -197,52 +168,52 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              targetRotY = euler.y;
           }
 
+          // 3.4 Double-Buffered EMA Smoothing
           const sr = stateRef.current;
-          const s = 0.35; 
+          const sPos = 0.45; // Position is highly responsive
+          const sSize = 0.25; // Size is more stable
+          const sRot = 0.35; // Rotation is balanced
+
           if (!sr.init) {
              sr.x = centerX; sr.y = centerY; sr.width = headWidthPx;
              sr.rotZ = targetRotZ; sr.rotY = targetRotY;
              sr.init = true;
           } else {
-             sr.x += (centerX - sr.x) * s;
-             sr.y += (centerY - sr.y) * s;
-             sr.width += (headWidthPx - sr.width) * s;
-             sr.rotZ += (targetRotZ - sr.rotZ) * s;
-             sr.rotY += (targetRotY - sr.rotY) * s;
+             sr.x += (centerX - sr.x) * sPos;
+             sr.y += (centerY - sr.y) * sPos;
+             sr.width += (headWidthPx - sr.width) * sSize;
+             sr.rotZ += (targetRotZ - sr.rotZ) * sRot;
+             sr.rotY += (targetRotY - sr.rotY) * sRot;
           }
 
+          const yawSquish = Math.cos(sr.rotY);
           const scalpW = sr.width * 1.1;
           const scalpH = scalpW * 0.6;
-          const yawSquish = Math.cos(sr.rotY);
           
+          // Scalp Base (No effects/gradients, just raw geometry)
           ctx.save();
           if (mirrored) {
               ctx.translate(w, 0);
               ctx.scale(-1, 1);
           }
-          ctx.translate(sr.x, sr.y - scalpH * 0.15);
+          ctx.translate(sr.x, sr.y - scalpH * 0.18);
           ctx.rotate(-sr.rotZ);
           ctx.scale(yawSquish, 1.0);
 
-          // Photoshop Edge: Radial Scalp Gradient for light depth
-          const grad = ctx.createRadialGradient(0, -scalpH * 0.2, 0, 0, 0, scalpW / 2);
-          const skinBase = skinColorRef.current;
-          grad.addColorStop(0, skinBase); // Center (High point)
-          grad.addColorStop(1, skinBase.replace('rgb', 'rgba').replace(')', ', 0.3)')); // Soft edge
-          
           ctx.beginPath();
           ctx.ellipse(0, 0, scalpW / 2, scalpH / 2, 0, 0, Math.PI * 2);
-          ctx.fillStyle = grad; 
+          ctx.fillStyle = '#e8beac'; 
           ctx.fill();
           ctx.restore();
 
-          // 5. Asset Overlay
+          // 4. Hair Asset Physical Attachment
           const hairImg = imagesRef.current[activeStyle];
           if (hairImg) {
               const aspect = hairImg.height / hairImg.width;
-              const drawW = sr.width * 1.65; 
+              // Precise Coverage Constant (1.62x)
+              const drawW = sr.width * 1.62; 
               const drawH = drawW * aspect;
-              const yOffset = -drawH * 0.78; 
+              const yOffset = -drawH * 0.82; // Attached deep to temples midpoint
 
               ctx.save();
               if (mirrored) {
@@ -252,12 +223,8 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               ctx.translate(sr.x, sr.y);
               ctx.rotate(-sr.rotZ); 
               ctx.scale(yawSquish, 1.0);
-
-              // Photoshop Edge: Soft Bloom/Shadow under hair
-              ctx.shadowColor = 'rgba(0,0,0,0.4)';
-              ctx.shadowBlur = 15;
-              ctx.shadowOffsetY = 5;
-
+              
+              // Raw source-over drawing, no shadows/effects
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
               ctx.restore();
           }
