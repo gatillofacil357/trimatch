@@ -190,13 +190,17 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           const scalpW = sr.width * 1.1;
           const scalpH = scalpW * 0.6;
           
+          // Refined Dynamic Offset (v11.1)
+          const offsetY = sr.width * 0.6; // Raised to actual head per user
+          const finalY = sr.y - offsetY;
+
           // Scalp Base (No effects/gradients, just raw geometry)
           ctx.save();
           if (mirrored) {
               ctx.translate(w, 0);
               ctx.scale(-1, 1);
           }
-          ctx.translate(sr.x, sr.y - scalpH * 0.18);
+          ctx.translate(sr.x, finalY);
           ctx.rotate(-sr.rotZ);
           ctx.scale(yawSquish, 1.0);
 
@@ -213,14 +217,14 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               // Precise Coverage Constant (1.62x)
               const drawW = sr.width * 1.62; 
               const drawH = drawW * aspect;
-              const yOffset = -drawH * 0.82; // Attached deep to temples midpoint
+              const yOffset = -drawH * 0.35; // Positioned relative to finalY (top of head)
 
               ctx.save();
               if (mirrored) {
                   ctx.translate(w, 0);
                   ctx.scale(-1, 1);
               }
-              ctx.translate(sr.x, sr.y);
+              ctx.translate(sr.x, finalY);
               ctx.rotate(-sr.rotZ); 
               ctx.scale(yawSquish, 1.0);
               
