@@ -30,6 +30,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const skinColorRef = useRef<string>('#e8beac');
 
   const stateRef = useRef({
     x: 0, y: 0, width: 0, height: 0, 
@@ -51,7 +52,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
       };
       img.onerror = () => {
           console.error(`Failed to load hair asset: ${key} at ${ASSETS[key]}`);
-          loadedCount++; // Avoid blocking if one fails
+          loadedCount++;
       };
     });
   }, []);
@@ -63,7 +64,6 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
-    // Persistent utility canvases
     if (!maskCanvasRef.current) maskCanvasRef.current = document.createElement('canvas');
     if (!tempCanvasRef.current) tempCanvasRef.current = document.createElement('canvas');
     
@@ -106,10 +106,30 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
         ctx.drawImage(source, 0, 0, w, h);
         ctx.restore();
 
-        // 2. Hair Erasure (Only if landmarks exist to ensure we can "replace" the erased part)
         const hasLandmarks = landmarks && landmarks.length > 400;
+
+        // 2. Skin Tone Sampling (v10.5 Photoshop Edition)
+        if (hasLandmarks) {
+            const forehead = landmarks[10];
+            const sx = Math.floor(forehead.x * w);
+            const sy = Math.floor(forehead.y * h);
+            
+            // Sample a small 5x5 area for stable color
+            try {
+                const pixelData = ctx.getImageData(sx, sy, 5, 5).data;
+                let r = 0, g = 0, b = 0;
+                for (let i = 0; i < pixelData.length; i += 4) {
+                    r += pixelData[i];
+                    g += pixelData[i + 1];
+                    b += pixelData[i + 2];
+                }
+                const count = pixelData.length / 4;
+                skinColorRef.current = `rgb(${Math.floor(r/count)}, ${Math.floor(g/count)}, ${Math.floor(b/count)})`;
+            } catch (e) { /* Fallback to default if out of bounds */ }
+        }
+
+        // 3. Feathered Hair Erasure
         const seg = segmentationRef?.current;
-        
         if (hasLandmarks && seg && seg.mask && maskCtx && tempCtx) {
             if (tempCanvas.width !== seg.width || tempCanvas.height !== seg.height) {
                 tempCanvas.width = seg.width;
@@ -129,6 +149,10 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
 
             maskCtx.clearRect(0, 0, w, h);
             maskCtx.save();
+            
+            // Photoshop Edge: Gaussian Blur on the mask
+            maskCtx.filter = 'blur(12px)'; 
+            
             if (mirrored) {
                 maskCtx.translate(w, 0);
                 maskCtx.scale(-1, 1);
@@ -136,14 +160,14 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
             maskCtx.drawImage(tempCanvas, 0, 0, w, h);
             maskCtx.restore();
 
-            // Apply 'destination-out'
+            // Apply 'destination-out' with soft edges
             ctx.save();
             ctx.globalCompositeOperation = 'destination-out';
             ctx.drawImage(maskCanvas, 0, 0);
             ctx.restore();
         }
 
-        // 3. Face Anchoring & Scalp Reconstruction
+        // 4. Face Anchoring & Scalp Reconstruction
         if (hasLandmarks) {
           const topForehead = landmarks[10];
           const leftTemple = landmarks[234];
@@ -187,7 +211,6 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              sr.rotY += (targetRotY - sr.rotY) * s;
           }
 
-          // Scalp Reconstruction
           const scalpW = sr.width * 1.1;
           const scalpH = scalpW * 0.6;
           const yawSquish = Math.cos(sr.rotY);
@@ -201,17 +224,22 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           ctx.rotate(-sr.rotZ);
           ctx.scale(yawSquish, 1.0);
 
+          // Photoshop Edge: Radial Scalp Gradient for light depth
+          const grad = ctx.createRadialGradient(0, -scalpH * 0.2, 0, 0, 0, scalpW / 2);
+          const skinBase = skinColorRef.current;
+          grad.addColorStop(0, skinBase); // Center (High point)
+          grad.addColorStop(1, skinBase.replace('rgb', 'rgba').replace(')', ', 0.3)')); // Soft edge
+          
           ctx.beginPath();
           ctx.ellipse(0, 0, scalpW / 2, scalpH / 2, 0, 0, Math.PI * 2);
-          ctx.fillStyle = '#e8beac'; 
+          ctx.fillStyle = grad; 
           ctx.fill();
           ctx.restore();
 
-          // 4. Asset Overlay
+          // 5. Asset Overlay
           const hairImg = imagesRef.current[activeStyle];
           if (hairImg) {
               const aspect = hairImg.height / hairImg.width;
-              // Slightly larger coverage (1.65x)
               const drawW = sr.width * 1.65; 
               const drawH = drawW * aspect;
               const yOffset = -drawH * 0.78; 
@@ -224,6 +252,12 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               ctx.translate(sr.x, sr.y);
               ctx.rotate(-sr.rotZ); 
               ctx.scale(yawSquish, 1.0);
+
+              // Photoshop Edge: Soft Bloom/Shadow under hair
+              ctx.shadowColor = 'rgba(0,0,0,0.4)';
+              ctx.shadowBlur = 15;
+              ctx.shadowOffsetY = 5;
+
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
               ctx.restore();
           }
