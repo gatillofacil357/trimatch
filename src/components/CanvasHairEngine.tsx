@@ -116,8 +116,18 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
             }
 
             const maskData = tempCtx.createImageData(seg.width, seg.height);
+            const eyeLine = landmarks[159].y; 
+
             for (let i = 0; i < seg.mask.length; i++) {
-                const val = seg.mask[i] * 255;
+                const row = Math.floor(i / seg.width);
+                const normY = row / seg.height;
+                
+                // v11.3 Check: Protect eyes and below
+                let val = seg.mask[i] * 255;
+                if (normY > eyeLine) {
+                    val = 0; // Force-protect face
+                }
+
                 const idx = i * 4;
                 maskData.data[idx] = 0;
                 maskData.data[idx + 1] = 0;
