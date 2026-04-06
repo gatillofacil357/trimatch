@@ -197,36 +197,19 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           }
 
           const yawSquish = Math.cos(sr.rotY);
-          const scalpW = sr.width * 1.1;
-          const scalpH = scalpW * 0.6;
           
-          // Refined Dynamic Offset (v11.1)
-          const offsetY = sr.width * 0.6; // Raised to actual head per user
-          const finalY = sr.y - offsetY;
-
-          // Scalp Base (No effects/gradients, just raw geometry)
-          ctx.save();
-          if (mirrored) {
-              ctx.translate(w, 0);
-              ctx.scale(-1, 1);
-          }
-          ctx.translate(sr.x, finalY);
-          ctx.rotate(-sr.rotZ);
-          ctx.scale(yawSquish, 1.0);
-
-          ctx.beginPath();
-          ctx.ellipse(0, 0, scalpW / 2, scalpH / 2, 0, 0, Math.PI * 2);
-          ctx.fillStyle = '#e8beac'; 
-          ctx.fill();
-          ctx.restore();
-
-          // 4. Hair Asset Physical Attachment
+          // 4. Hair Asset Physical Attachment (v11.4 Streamlined)
           const hairImg = imagesRef.current[activeStyle];
           if (hairImg) {
               const aspect = hairImg.height / hairImg.width;
               // User-defined Scale Constant (2.2x)
               const drawW = sr.width * 2.2; 
               const drawH = drawW * aspect;
+              
+              // Refined Dynamic Offset (v11.1)
+              const offsetY = sr.width * 0.6; 
+              const finalY = sr.y - offsetY;
+              
               const yOffset = -drawH * 0.35; // Positioned relative to finalY (top of head)
 
               ctx.save();
@@ -238,7 +221,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
               ctx.rotate(-sr.rotZ); 
               ctx.scale(yawSquish, 1.0);
               
-              // Raw source-over drawing, no shadows/effects
+              // Raw source-over drawing
               ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
               ctx.restore();
           }

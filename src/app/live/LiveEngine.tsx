@@ -138,7 +138,7 @@ export default function LiveEngine() {
       )}
 
       <div className={styles.cameraWrapper} ref={containerRef}>
-        <div className={styles.versionBadge}>AR Engine v11.3 (Eye Protection) ✅</div>
+        <div className={styles.versionBadge}>AR Engine v11.4 (Streamlined) ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={false} 
