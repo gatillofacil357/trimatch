@@ -128,7 +128,7 @@ export default function LiveEngine() {
           mirrored={false} 
           audio={false}
           className={styles.webcam}
-          style={{ opacity: 0, pointerEvents: 'none', position: 'absolute' }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, opacity: 1 }}
           videoConstraints={{ facingMode: "user" }}
         />
         
