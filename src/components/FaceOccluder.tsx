@@ -84,15 +84,16 @@ export default function FaceOccluder({ webcamRef, trackingRef, mirrored = false 
                 // Ensure within bounds
                 if (vx > 0 && vx < video.videoWidth && vy > 0 && vy < video.videoHeight) {
                     ctx.drawImage(video, vx - 5, vy - 5, 10, 10, 0, 0, 10, 10);
-                    const pixel = ctx.getImageData(5, 5, 1, 1).data;
-                    
-                    // Smooth color transition
-                    const r = pixel[0] / 255;
-                    const g = pixel[1] / 255;
-                    const b = pixel[2] / 255;
-                    
-                    const uniforms = materialRef.current.uniforms;
-                    uniforms.uColor.value.lerp(new THREE.Vector3(r, g, b), 0.1);
+                    const pixelData = ctx.getImageData(5, 5, 1, 1).data;
+                    // Guard: Avoid sampling purely black pixels (could be outside video frame)
+                    if (pixelData[0] > 10 || pixelData[1] > 10 || pixelData[2] > 10) {
+                        const r = pixelData[0] / 255;
+                        const g = pixelData[1] / 255;
+                        const b = pixelData[2] / 255;
+                        
+                        const uniforms = materialRef.current.uniforms;
+                        uniforms.uColor.value.lerp(new THREE.Vector3(r, g, b), 0.1);
+                    }
                 }
             }
         }
@@ -119,10 +120,8 @@ export default function FaceOccluder({ webcamRef, trackingRef, mirrored = false 
     varying float vY;
 
     void main() {
-      // 0 is top of the face (forehead), 1 is the bottom (chin).
-      // We want to solidly hide the hair at the top (alpha=1.0) and fade completely out by the eyes/nose (y=0.4).
-      float alpha = 1.0 - smoothstep(0.1, 0.4, vUv.y); 
-
+      // We want to solidly hide the hair at the top (alpha=1.0) and fade completely out VERY fast (y=0.15).
+      float alpha = 1.0 - smoothstep(0.0, 0.15, vUv.y); 
       // Fade the side edges slightly so it blends into the skin
       float edgeX = 1.0 - abs(vUv.x * 2.0 - 1.0);
       alpha *= smoothstep(0.0, 0.15, edgeX);

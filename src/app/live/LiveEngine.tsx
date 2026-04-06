@@ -156,11 +156,6 @@ export default function LiveEngine() {
                   trackingRef={trackingRef as any} 
                   mirrored={false}
                 />
-                <BeardFilter
-                  webcamRef={webcamRef}
-                  trackingRef={trackingRef as any}
-                  mirrored={false}
-                />
               </Canvas>
             </div>
           </>
