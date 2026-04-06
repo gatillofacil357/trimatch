@@ -86,8 +86,7 @@ export default function LiveEngine() {
           if (!mpInitialized) setMpInitialized(true);
         }
 
-        // 2. SEGMENTATION (Disabled in Phase 3 for stability)
-        /*
+        // 2. SEGMENTATION (Re-enabled for v10.0 Realism)
         imageSegmenter.segmentForVideo(video, time, (result) => {
             if (result.confidenceMasks) {
                 const mask = result.confidenceMasks[0].getAsFloat32Array();
@@ -98,7 +97,6 @@ export default function LiveEngine() {
                 };
             }
         });
-        */
       }
       
       const delay = performanceMode ? 1000 / 15 : 0;
@@ -140,7 +138,7 @@ export default function LiveEngine() {
       )}
 
       <div className={styles.cameraWrapper} ref={containerRef}>
-        <div className={styles.versionBadge}>AR Engine v9.5 (Canvas Pro) ✅</div>
+        <div className={styles.versionBadge}>AR Engine v10.0 (Realism Engine) ✅</div>
         <Webcam 
           ref={webcamRef}
           mirrored={false} 
@@ -160,6 +158,7 @@ export default function LiveEngine() {
           <CanvasHairEngine
             webcamRef={webcamRef}
             trackingRef={trackingRef}
+            segmentationRef={segmentationRef}
             activeStyle={activeStyle}
           />
         )}

@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import CanvasHairEngine from '@/components/CanvasHairEngine';
 import StyleSearch from '@/components/StyleSearch';
 import { useFaceLandmarker } from '@/hooks/useFaceLandmarker';
+import { useHairSegmenter } from '@/hooks/useHairSegmenter';
 import { analyzeFaceShape, AnalysisResult, FaceMetrics, saveAnalysis, getStoredAnalysis } from '@/utils/FaceShapeAnalyzer';
 import { supabase, Barber } from '@/utils/supabase';
 import styles from './page.module.css';
@@ -51,8 +52,12 @@ function TryOnStudioContent() {
   });
 
   const { faceLandmarker, loading: mpLoading } = useFaceLandmarker();
+  const { imageSegmenter } = useHairSegmenter();
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const segmentationRef = useRef<{ mask: Float32Array | null, width: number, height: number }>({
+      mask: null, width: 0, height: 0
+  });
   const dummyWebcamRef = useRef<any>(null); // For FaceOccluder strict typing
 
   useEffect(() => {
@@ -82,6 +87,18 @@ function TryOnStudioContent() {
         try {
             const results = faceLandmarker.detect(img);
             if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+                // Segmentation (v10.0 Realism)
+                if (imageSegmenter) {
+                    const segResult = imageSegmenter.segment(img);
+                    if (segResult.confidenceMasks) {
+                        segmentationRef.current = {
+                            mask: segResult.confidenceMasks[0].getAsFloat32Array(),
+                            width: segResult.confidenceMasks[0].width,
+                            height: segResult.confidenceMasks[0].height
+                        };
+                    }
+                }
+
                 const currentLandmarks = results.faceLandmarks[0];
                 setLandmarks(currentLandmarks);
                 
@@ -159,8 +176,8 @@ function TryOnStudioContent() {
         <CanvasHairEngine
           webcamRef={imgRef as any}
           trackingRef={trackingRef}
+          segmentationRef={segmentationRef}
           activeStyle={activeStyle}
-          segmentationRef={{ current: { mask: null, width: 0, height: 0 } } as any}
           mirrored={false}
         />
       </div>
@@ -209,8 +226,8 @@ function TryOnStudioContent() {
 
           <div className={styles.controlsHeader}>
             <div className={styles.titleCol}>
-                <h2>Simulador Realista 4.0</h2>
-                <div className={styles.badgeAR}>Oclusión Facial Activa 🛡️</div>
+                <h2>Simulador Realista 5.0</h2>
+                <div className={styles.badgeAR}>Oclusión Facial Realista (v10) 🛡️</div>
             </div>
             <button 
               className={styles.compareBtn}
