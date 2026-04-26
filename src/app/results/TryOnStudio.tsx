@@ -18,9 +18,7 @@ const HAIRSTYLES = [
   { id: 'fade', name: 'Fade Clásico' },
   { id: 'buzz', name: 'Buzz Cut' },
   { id: 'undercut', name: 'Undercut' },
-  { id: 'pompadour', name: 'Pompadour' },
-  { id: 'textured', name: 'Corto Texturizado' },
-  { id: 'long', name: 'Pelo Largo' }
+  { id: 'bald', name: 'Pelado' }
 ];
 
 const COLORS = [
@@ -178,6 +176,7 @@ function TryOnStudioContent() {
           trackingRef={trackingRef}
           segmentationRef={segmentationRef}
           activeStyle={activeStyle}
+          activeColor={activeColor.hex}
           mirrored={false}
         />
       </div>

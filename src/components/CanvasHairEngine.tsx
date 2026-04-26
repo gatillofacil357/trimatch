@@ -21,19 +21,21 @@ interface CanvasHairEngineProps {
     height: number
   }>;
   activeStyle: string;
+  activeColor?: string;
   mirrored?: boolean;
 }
 
-export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle, mirrored = false }: CanvasHairEngineProps) {
+export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationRef, activeStyle, activeColor, mirrored = false }: CanvasHairEngineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const tintCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   const stateRef = useRef({
     x: 0, y: 0, width: 0, height: 0, 
-    rotY: 0, rotZ: 0,
+    rotY: 0, rotZ: 0, rotX: 0,
     init: false
   });
 
@@ -65,11 +67,14 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
 
     if (!maskCanvasRef.current) maskCanvasRef.current = document.createElement('canvas');
     if (!tempCanvasRef.current) tempCanvasRef.current = document.createElement('canvas');
+    if (!tintCanvasRef.current) tintCanvasRef.current = document.createElement('canvas');
     
     const maskCanvas = maskCanvasRef.current;
     const maskCtx = maskCanvas.getContext('2d');
     const tempCanvas = tempCanvasRef.current;
     const tempCtx = tempCanvas.getContext('2d');
+    const tintCanvas = tintCanvasRef.current;
+    const tintCtx = tintCanvas.getContext('2d');
 
     let animId: number;
 
@@ -151,7 +156,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
             ctx.restore();
         }
 
-        // 3. Perfect Geometric Anchoring & Scaling (v11.0)
+        // 3. Perfect Geometric Anchoring & Scaling (v12.0)
         if (hasLandmarks) {
           const leftTemple = landmarks[234];
           const rightTemple = landmarks[454];
@@ -168,6 +173,7 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
           // 3.3 Precise Rotation
           let targetRotZ = 0;
           let targetRotY = 0;
+          let targetRotX = 0;
           if (matrix) {
              const pos = new THREE.Vector3();
              const quat = new THREE.Quaternion();
@@ -176,17 +182,18 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              const euler = new THREE.Euler().setFromQuaternion(quat, 'YXZ');
              targetRotZ = euler.z;
              targetRotY = euler.y;
+             targetRotX = euler.x; 
           }
 
           // 3.4 Double-Buffered EMA Smoothing
           const sr = stateRef.current;
-          const sPos = 0.45; // Position is highly responsive
-          const sSize = 0.25; // Size is more stable
-          const sRot = 0.35; // Rotation is balanced
+          const sPos = 0.45;
+          const sSize = 0.25;
+          const sRot = 0.35;
 
           if (!sr.init) {
              sr.x = centerX; sr.y = centerY; sr.width = headWidthPx;
-             sr.rotZ = targetRotZ; sr.rotY = targetRotY;
+             sr.rotZ = targetRotZ; sr.rotY = targetRotY; sr.rotX = targetRotX;
              sr.init = true;
           } else {
              sr.x += (centerX - sr.x) * sPos;
@@ -194,36 +201,81 @@ export default function CanvasHairEngine({ webcamRef, trackingRef, segmentationR
              sr.width += (headWidthPx - sr.width) * sSize;
              sr.rotZ += (targetRotZ - sr.rotZ) * sRot;
              sr.rotY += (targetRotY - sr.rotY) * sRot;
+             sr.rotX += (targetRotX - sr.rotX) * sRot;
           }
 
           const yawSquish = Math.cos(sr.rotY);
           
-          // 4. Hair Asset Physical Attachment (v11.4 Streamlined)
-          const hairImg = imagesRef.current[activeStyle];
-          if (hairImg) {
-              const aspect = hairImg.height / hairImg.width;
-              // User-defined Scale Constant (2.2x)
-              const drawW = sr.width * 2.2; 
-              const drawH = drawW * aspect;
-              
-              // Refined Dynamic Offset (v11.1)
-              const offsetY = sr.width * 0.6; 
-              const finalY = sr.y - offsetY;
-              
-              const yOffset = -drawH * 0.35; // Positioned relative to finalY (top of head)
+          // 4. Scalp Realism (v12.0 Bald Cap) - Essential for both Bald filter and realistic hair gaps
+          ctx.save();
+          if (mirrored) {
+              ctx.translate(w, 0);
+              ctx.scale(-1, 1);
+          }
+          
+          // Anchor scalp dome based on pitch (rotX)
+          // As head tilts down (positive rotX), we pull the dome UP
+          const pitchOffset = sr.rotX * (sr.width * 0.4);
+          ctx.translate(sr.x, sr.y - sr.width * 0.3 + pitchOffset);
+          ctx.rotate(-sr.rotZ);
+          ctx.scale(yawSquish, 1.4); // Skull is taller than wide
 
-              ctx.save();
-              if (mirrored) {
-                  ctx.translate(w, 0);
-                  ctx.scale(-1, 1);
+          const scalpGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, sr.width * 0.7);
+          scalpGrad.addColorStop(0, '#e8beac'); // Base skin tone (approximate)
+          scalpGrad.addColorStop(0.7, '#d1a390');
+          scalpGrad.addColorStop(1.0, 'rgba(160, 120, 100, 0)'); // Fade to nothing at edges
+          
+          ctx.fillStyle = scalpGrad;
+          ctx.beginPath();
+          ctx.arc(0, 0, sr.width * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          // 5. Hair Asset Physical Attachment (v12.0)
+          if (activeStyle !== 'bald') {
+              const hairImg = imagesRef.current[activeStyle];
+              if (hairImg && tintCtx) {
+                  const aspect = hairImg.height / hairImg.width;
+                  const drawW = sr.width * 2.2; 
+                  const drawH = drawW * aspect;
+                  
+                  // Pitch-aware positioning: Pull hair down when looking down, up when looking up
+                  const pitchY = sr.rotX * (sr.width * 0.5);
+                  const offsetY = sr.width * 0.6 + pitchY; 
+                  const finalY = sr.y - offsetY;
+                  
+                  const yOffset = -drawH * 0.35;
+
+                  // Apply Color Tint (v12.0)
+                  if (activeColor && tintCanvas) {
+                      if (tintCanvas.width !== hairImg.width || tintCanvas.height !== hairImg.height) {
+                          tintCanvas.width = hairImg.width;
+                          tintCanvas.height = hairImg.height;
+                      }
+                      tintCtx.clearRect(0, 0, tintCanvas.width, tintCanvas.height);
+                      tintCtx.drawImage(hairImg, 0, 0);
+                      
+                      // Tint logic: Use color as overlay or multiply
+                      tintCtx.globalCompositeOperation = 'source-atop';
+                      tintCtx.fillStyle = activeColor;
+                      tintCtx.globalAlpha = 0.5; // Blend factor
+                      tintCtx.fillRect(0, 0, tintCanvas.width, tintCanvas.height);
+                      tintCtx.globalAlpha = 1.0;
+                      tintCtx.globalCompositeOperation = 'source-over';
+                  }
+
+                  ctx.save();
+                  if (mirrored) {
+                      ctx.translate(w, 0);
+                      ctx.scale(-1, 1);
+                  }
+                  ctx.translate(sr.x, finalY);
+                  ctx.rotate(-sr.rotZ); 
+                  ctx.scale(yawSquish, 1.0);
+                  
+                  ctx.drawImage(activeColor ? tintCanvas : hairImg, -drawW / 2, yOffset, drawW, drawH);
+                  ctx.restore();
               }
-              ctx.translate(sr.x, finalY);
-              ctx.rotate(-sr.rotZ); 
-              ctx.scale(yawSquish, 1.0);
-              
-              // Raw source-over drawing
-              ctx.drawImage(hairImg, -drawW / 2, yOffset, drawW, drawH);
-              ctx.restore();
           }
         }
       }
